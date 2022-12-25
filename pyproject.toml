@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "matchup-identifier"
+version = "0.1.0"
+description = ""
+authors = ["Ishan <ismehta@eng.ucsd.edu>"]
+readme = "README.md"
+packages = [{include = "matchup_identifier"}]
+
+[tool.poetry.dependencies]
+python = "^3.8.7"
+pandas = "^1.5.2"
+numpy = "^1.24.0"
+sklearn = "^0.0.post1"
+plotly = "^5.11.0"
+statsmodels = "^0.13.5"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
