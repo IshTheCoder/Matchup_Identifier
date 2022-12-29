@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 import numpy as np
 from scipy.linalg import solve
-from scipy.stats import multivariate_normal, norm
+from scipy.stats import norm
 
 from data_processing import voxels_to_design_response
 
@@ -102,12 +102,14 @@ def forward_procedure(
     out_array = np.zeros((max_timestep + 1, k))
     t = 0  ## base case
     out_array[t, :] = initial_state_distribution[t, :] * pdf_location_difference[t, :]
+    out_array[t, :] /= out_array[t, :].sum()
     t += 1
     while t < max_timestep + 1:
         out_array[t, :] = (
             np.matmul(transition_matrix, out_array[t - 1, :])
             * pdf_location_difference[t, :]
         )
+        out_array[t, :] /= out_array[t, :].sum()
         t += 1
     return out_array
 
@@ -137,6 +139,7 @@ def backward_procedure(
         out_array[t, :] = np.matmul(
             transition_matrix, out_array[t + 1, :] * pdf_location_difference[t + 1, :]
         )
+        out_array[t, :] /= out_array[t, :].sum()
         t -= 1
     return out_array
 
@@ -388,7 +391,7 @@ if __name__ == "__main__":
 
     from data_processing import possession_to_voxel
 
-    data = pd.read_csv("sample_data.csv")
+    data = pd.read_csv("data/sample_data.csv")
 
     voxel_data = []
     i = 0
@@ -396,15 +399,13 @@ if __name__ == "__main__":
         voxel_data.append(possession_to_voxel(poss))
         i += 1
 
-        if i > 20:
+        if i > 1000:
             break
     n = len(voxel_data)
 
     B_list = [voxel[0] for voxel in voxel_data]
     O_list = [voxel[1] for voxel in voxel_data]
     D_list = [voxel[2] for voxel in voxel_data]
-    _, k, _ = O_list[0].shape
-    _, j, _ = D_list[0].shape
     k_list = [O.shape[1] for O in O_list]
     j_list = [D.shape[1] for D in D_list]
     t_list = [B.shape[0] for B in B_list]
@@ -416,7 +417,7 @@ if __name__ == "__main__":
 
     starting_state_distribution = [np.ones((j, k)) / k for j, k in zip(j_list, k_list)]
 
-    while i <= 100:
+    while i <= 3:
         (
             tau_hat,
             sigma_hat,
