@@ -30,7 +30,7 @@ def expectation_matchup_step(
         iterations (int): when to stop algorithm
 
     Returns:
-        np.ndarray: t x k matrix indicating probability that at timestep t, a player is assigned (guarding) player k
+        np.ndarray: t x k x k matrix indicating probability that at timestep t, a player is assigned (guarding) player k
     """
 
     t, k, _ = O.shape  ### get dimensions
@@ -68,15 +68,13 @@ def expectation_matchup_step(
     likelihood = lam.sum(axis=1, keepdims=True)  ### need this for later
     lam_normalized = lam / likelihood
 
-    eta = np.matmul(
-        transition_matrix,
-        (
-            forward_result[0:-1, :]
-            * backward_result[1:, :]
-            * pdf_location_difference[1:, :]
-        ).T,
-    ).T
-    eta /= eta.sum(axis=1, keepdims=True)
+    partial_product = backward_result * pdf_location_difference
+    eta = np.zeros((t, k, k))
+    for i in range(t):
+        eta[i, :, :] = transition_matrix * np.outer(
+            partial_product[i + 1, :], forward_result[i, :]
+        )
+        eta[i, :, :] /= eta[i, :, :].sum(axis=1, keepdims=True)
 
     return lam_normalized, eta, np.log(likelihood)
 
@@ -184,7 +182,7 @@ def maximize_sigma(
 
     n, _ = X.shape
     residual = D - np.matmul(X, tau_hat)
-    return np.matmul(residual.T * Sigma, residual) / n
+    return np.matmul(residual.T * (Sigma), residual) / n
 
 
 def maximize_rho_possession(A: np.ndarray) -> float:
@@ -224,7 +222,10 @@ def maximize_rho(A: List[np.ndarray]) -> float:
     total_sum = 0
     max_k = 0
     for element in A:
-        numerator += element[:, :, 0].sum()
+        l, m, _, _ = element.shape
+        for row in range(l):
+            for col in range(m):
+                numerator += np.trace(element[row, col, :, :])
         total_sum += element.sum()
         k = element.shape[2]
         if k >= max_k:
@@ -232,7 +233,7 @@ def maximize_rho(A: List[np.ndarray]) -> float:
 
     Q_hat = (numerator / (total_sum - numerator)) * (1 / (max_k - 1))
 
-    return Q_hat / (1 + Q_hat)
+    return 1 - (Q_hat / (1 + Q_hat))
 
 
 def expectation_matchup_possession(
@@ -256,7 +257,7 @@ def expectation_matchup_possession(
         B (np.ndarray): t x 2 dimensional vector of ball carrier positions (x,y)
 
     Returns:
-        np.ndarray: t x j x k matrix indicating probability that at timestep t, a player is assigned (guarding) player k
+        np.ndarray: t x j x k x k matrix indicating probability that at timestep t, a player is assigned (guarding) player k
     """
     A_list = []
     I_list = []
@@ -274,7 +275,7 @@ def expectation_matchup_possession(
         I_list.append(I)
         A_list.append(A)
         log_lik += likelihood
-    A_stack = np.stack(A_list, -2)
+    A_stack = np.stack(A_list, 1)
     I_stack = np.stack(I_list, -2)
     return I_stack, A_stack, log_lik
 
@@ -316,7 +317,7 @@ def expectation_maximization_possession(
     tau_new = maximize_tau(X, Sigma, y)
 
     ### sigma update
-    sigma_new = np.squeeze(maximize_sigma(tau_new, Sigma, y, X))
+    sigma_new = np.squeeze(maximize_sigma(tau_new, Sigma, y, X)).item()
 
     print(f"Likelihood: {likelihood}")
 
@@ -377,7 +378,7 @@ def expectation_maximization(
     tau_new = maximize_tau(X_new, Sigma_new, y_new)
 
     ### sigma update
-    sigma_new = np.squeeze(maximize_sigma(tau_new, Sigma_new, y_new, X_new))
+    sigma_new = np.squeeze(maximize_sigma(tau_new, Sigma_new, y_new, X_new)).item()
     ## likelihood calc
 
     likelihood = np.concatenate(likelihood_list).mean()
@@ -391,46 +392,62 @@ if __name__ == "__main__":
 
     from data_processing import possession_to_voxel
 
-    data = pd.read_csv("data/sample_data.csv")
+    ### by position
+    param_list = []
+    data = pd.read_csv("data/position_sample_data.csv")
+    data = data[data["possession_id"] != 670]
+    positions = ["T", "C", "RB", "TE", "WR", "FB", "G"]
+    for position in positions:
+        print(f"fitting data for {position}")
+        pos_data = data[
+            (data["officialPosition"] == position) & (data["pff_role"] == "Pass Block")
+        ]
 
-    voxel_data = []
-    i = 0
-    for _, poss in data.groupby("possession_id"):
-        voxel_data.append(possession_to_voxel(poss))
-        i += 1
+        voxel_data = []
+        for _, poss in pos_data.groupby("possession_id"):
+            voxel_data.append(possession_to_voxel(poss))
 
-        if i > 1000:
-            break
-    n = len(voxel_data)
+        n = len(voxel_data)
 
-    B_list = [voxel[0] for voxel in voxel_data]
-    O_list = [voxel[1] for voxel in voxel_data]
-    D_list = [voxel[2] for voxel in voxel_data]
-    k_list = [O.shape[1] for O in O_list]
-    j_list = [D.shape[1] for D in D_list]
-    t_list = [B.shape[0] for B in B_list]
+        B_list = [voxel[0] for voxel in voxel_data]
+        O_list = [voxel[1] for voxel in voxel_data]
+        D_list = [voxel[2] for voxel in voxel_data]
+        k_list = [O.shape[1] for O in O_list]
+        j_list = [D.shape[1] for D in D_list]
+        t_list = [B.shape[0] for B in B_list]
 
-    tau_hat = np.array([0.8, 0.2]).reshape((2, 1))
-    rho_hat = 0.95
-    sigma_hat = 20
-    i = 0
+        tau_hat = np.array([0.8, 0.2]).reshape((2, 1))
+        rho_hat = 0.95
+        sigma_hat = 20
+        i = 0
 
-    starting_state_distribution = [np.ones((j, k)) / k for j, k in zip(j_list, k_list)]
+        starting_state_distribution = [
+            np.ones((j, k)) / k for j, k in zip(j_list, k_list)
+        ]
 
-    while i <= 3:
-        (
-            tau_hat,
-            sigma_hat,
-            rho_hat,
-            starting_state_distribution,
-        ) = expectation_maximization(
-            tau_hat,
-            forward_result=starting_state_distribution,
-            rho_init=rho_hat,
-            sigma_init=sigma_hat,
-            B=B_list,
-            D=D_list,
-            O=O_list,
-        )
-        i += 1
-        print(tau_hat, sigma_hat, rho_hat)
+        while i <= 15:
+            (
+                tau_hat,
+                sigma_hat,
+                rho_hat,
+                starting_state_distribution,
+            ) = expectation_maximization(
+                tau_hat,
+                forward_result=starting_state_distribution,
+                rho_init=rho_hat,
+                sigma_init=sigma_hat,
+                B=B_list,
+                D=D_list,
+                O=O_list,
+            )
+            i += 1
+        data_dict = {
+            "tau": tau_hat,
+            "sigma": sigma_hat,
+            "rho": rho_hat,
+            "position": position,
+        }
+        print(data_dict)
+        param_list.append(data_dict)
+        print("param estimation completed")
+    pd.DataFrame(param_list).to_csv("fitted_params.csv", index=False)
