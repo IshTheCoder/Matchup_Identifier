@@ -233,7 +233,7 @@ def maximize_rho(A: List[np.ndarray]) -> float:
 
     Q_hat = (numerator / (total_sum - numerator)) * (1 / (max_k - 1))
 
-    return 1 - (Q_hat / (1 + Q_hat))
+    return Q_hat / (1 + Q_hat)
 
 
 def expectation_matchup_possession(
