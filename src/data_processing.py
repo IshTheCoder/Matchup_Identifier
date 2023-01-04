@@ -59,7 +59,7 @@ def voxels_to_design_response(
         D (np.ndarray): t x j x 2 matrix of defender positions
         O (np.ndarray): t x k x 2 matrix of pass rusher positions
         B (np.ndarray): t  x 2 array of quarterback positions
-        I (np.ndarray): (t+1) x j x k array of probable assignments
+        I (np.ndarray): (t) x j x k array of probable assignments
 
     Returns:
         np.ndarray: tuple of n x 2 array, and n x 1 array, n = 2 * j x k * t
@@ -71,7 +71,6 @@ def voxels_to_design_response(
     B = np.repeat(
         np.repeat(B[:, np.newaxis, :], j, axis=1)[:, np.newaxis, :, :], k, axis=1
     )
-    I = I[0:-1, :, :]  ## remove extra row for padded time step
     I = np.hstack([I.flatten(), I.flatten()])
     X = np.column_stack([O.flatten(), B.flatten()])
     y = D.flatten()[:, np.newaxis]
