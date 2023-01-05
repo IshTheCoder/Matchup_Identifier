@@ -461,14 +461,12 @@ if __name__ == "__main__":
 
     ### by position
     param_list = []
-    data = pd.read_csv("data/position_sample_data.csv")
+    data = pd.read_csv("data/sample_data_week_0.csv")
     data = data[data["possession_id"] != 670]
     positions = ["T", "C", "RB", "TE", "WR", "FB", "G"]
     for position in positions:
         print(f"fitting data for {position}")
-        pos_data = data[
-            (data["officialPosition"] == position) & (data["pff_role"] == "Pass Block")
-        ]
+        pos_data = data[(data["officialPosition_pb"] == position)]
 
         voxel_data = []
         for _, poss in pos_data.groupby("possession_id"):
@@ -476,9 +474,9 @@ if __name__ == "__main__":
 
         n = len(voxel_data)
 
-        B_list = [voxel[0] for voxel in voxel_data]
-        O_list = [voxel[1] for voxel in voxel_data]
-        D_list = [voxel[2] for voxel in voxel_data]
+        B_list = [voxel[0] for voxel in voxel_data if voxel[1].shape[1] != 1]
+        O_list = [voxel[1] for voxel in voxel_data if voxel[1].shape[1] != 1]
+        D_list = [voxel[2] for voxel in voxel_data if voxel[1].shape[1] != 1]
         k_list = [O.shape[1] for O in O_list]
         j_list = [D.shape[1] for D in D_list]
         t_list = [B.shape[0] for B in B_list]
@@ -517,4 +515,4 @@ if __name__ == "__main__":
         print(data_dict)
         param_list.append(data_dict)
         print("param estimation completed")
-    # pd.DataFrame(param_list).to_csv("fitted_params.csv", index=False)
+    pd.DataFrame(param_list).to_csv("fitted_params.csv", index=False)
