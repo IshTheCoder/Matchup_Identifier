@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 df_pff = pd.read_csv("data/pffScoutingData.csv")
+players = pd.read_csv("data/players.csv")
 weeks_used = 8
 all_files = ["data/week" + str(i) + ".csv" for i in range(1, weeks_used + 1)]
 
@@ -24,19 +25,21 @@ for i, f in enumerate(all_files):
         | (merged_df["pff_role"] == "Pass Rush")
         | (merged_df["pff_role"] == "Pass")
     ]
-
-    merged_df
+    merged_df = pd.merge(players[["nflId", "officialPosition"]], merged_df)
 
     df_qb = merged_df[merged_df["pff_role"] == "Pass"][
-        ["gameId", "playId", "frameId", "time", "nflId", "x", "y"]
+        ["gameId", "playId", "frameId", "time", "nflId", "x", "y", "event"]
     ]
-    df_qb
+    df_qb_snap = df_qb[df_qb.event == "ball_snap"][["gameId", "playId", "time"]]
+    df_qb_snap.rename(mapper={"time": "snap_time"}, axis=1, inplace=True)
+    df_qb = pd.merge(df_qb_snap, df_qb)
+    df_qb = df_qb[df_qb.snap_time <= df_qb.time]
 
     df_pr = merged_df[merged_df["pff_role"] == "Pass Rush"][
-        ["gameId", "playId", "frameId", "time", "nflId", "x", "y"]
+        ["gameId", "playId", "frameId", "time", "nflId", "x", "y", "officialPosition"]
     ]
     df_pb = merged_df[merged_df["pff_role"] == "Pass Block"][
-        ["gameId", "playId", "frameId", "time", "nflId", "x", "y"]
+        ["gameId", "playId", "frameId", "time", "nflId", "x", "y", "officialPosition"]
     ]
 
     df_x = df_pr.merge(
@@ -46,18 +49,12 @@ for i, f in enumerate(all_files):
         suffixes=("_pr", "_qb"),
     )
 
-    df_test = df_x
-
-    df_final = df_test.merge(
+    df_final = df_x.merge(
         df_pb,
         left_on=["gameId", "playId", "frameId", "time"],
         right_on=["gameId", "playId", "frameId", "time"],
         suffixes=("", "_pb"),
     )
-
-    X = df_final[["x_pr", "y_pr", "x_qb", "y_qb"]].values
-
-    Y = df_final[["x", "y"]].values
 
     df_final["possession_id"] = df_final.groupby(["gameId", "playId"]).ngroup()
 
