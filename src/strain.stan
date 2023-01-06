@@ -3,32 +3,30 @@ data {
 
 int<lower=1> N;    
 int<lower=1> N_blockers;  
-int<lower=0> N_rushers;
-int<lower=0> N_qbs;                               
+int<lower=0> N_rushers;                            
 matrix[N,N_blockers] X_blockers;                                                         
-int rusher_random_effect[N];                          
-int qb_random_effect[N];                      
+int rusher_identifier[N];                                             
 vector[N] strain;
 }
 
 parameters {
     vector[N_blockers] betas;
-    vector[N_qbs] betas_qb;
-    vector[N_rushers] betas_rusher;
-    positive_ordered[2] sigma_re;
+    vector<lower = 1, upper = 10> [N_rushers] betas_rusher;
     real<lower=0> lambda;                         
                               
+}
+transformed parameters {
+   
+   real mu[N];
+   for (i in 1:N) {
+      /* code */
+      mu[i] = betas_rusher[rusher_identifier[i]+1]/(X_blockers[i,]*betas);
+   }
 }
 
 
 model {
     betas ~ normal(0,1);    
-    betas_qb ~ normal(0,sigma_re[1]);
-    betas_rusher ~ normal(0,sigma_re[2]);
-                                                 
-    for (i in 1:N) {
-       /* code */
-       strain[i] ~ normal(X_blockers[i,]*betas + betas_qb[qb_random_effect[i]+1] + 
-       betas_rusher[rusher_random_effect[i]+1], sum(sigma_re));
-    }
+    betas_rusher ~ normal(2,1);                        
+    strain ~ normal(mu, lambda);
 }
