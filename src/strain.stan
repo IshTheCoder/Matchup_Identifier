@@ -12,7 +12,7 @@ vector[N] acceleration;
 }
 
 parameters {
-    vector[N_blockers] betas;
+    simplex[N_blockers] betas;
     vector<lower=0>[N_rushers] betas_rusher;
     real<lower=0> lambda;   
     real<lower=0, upper=1> scale;               
@@ -30,7 +30,6 @@ transformed parameters {
 
 model {
     scale ~ beta(10,2);
-    betas ~ normal(0, 5);       
     betas_rusher ~ exponential(scale);                  
     acceleration ~ normal(mu, lambda);
 }
