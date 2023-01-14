@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from itertools import chain
 
 
 weeks_used = 8
@@ -115,6 +116,57 @@ def generate_acceleration_data():
         data_list.append(pr_filtered)
 
     pd.concat(data_list).to_csv("processed_data/pass_rusher_features.csv", index=False)
+
+
+def generate_features(
+    assignment_data: pd.DataFrame, acceleration_data: pd.DataFrame
+) -> Tuple[pd.DataFrame, dict, dict]:
+    """_summary_
+
+    Args:
+        assignment_data (pd.DataFrame): prob of assignment
+        acceleration_data (pd.DataFrame): acceleration based data
+
+    Returns:
+        pd.DataFrame: clean df to use for analysis as well as dictionary params
+    """
+    assignment_data_agg = (
+        assignment_data.groupby(["nflId_pr", "playId", "frameId", "gameId"])
+        .apply(lambda x: {i: val for val, i in zip(x.assignment_probs, x.nflId)})
+        .reset_index()
+    )
+    assignment_data_agg.rename(axis=1, mapper={0: "assignment_dict"}, inplace=True)
+    final_feature_data = assignment_data_agg.merge(
+        acceleration_data.drop_duplicates(["time", "nflId_pr"])
+    )
+    rusher_encode_map = {
+        index: val for index, val in enumerate(set(final_feature_data["nflId_pr"]))
+    }
+    rusher_encode_inverse_map = {
+        rusher_encode_map[index]: index for index in rusher_encode_map
+    }
+    final_feature_data["rusher_id_model"] = final_feature_data["nflId_pr"].apply(
+        lambda x: rusher_encode_inverse_map[x]
+    )
+    blocker_encode_map = {
+        index: val
+        for index, val in enumerate(
+            set(
+                chain.from_iterable(
+                    [
+                        list(item.keys())
+                        for item in final_feature_data["assignment_dict"]
+                    ]
+                )
+            )
+        )
+    }
+    final_feature_data_na = final_feature_data.dropna()
+    final_feature_data_na = final_feature_data[
+        (~np.isinf(final_feature_data.strain_acceleration))
+        & (~np.isinf(final_feature_data.strain_rate))
+    ]
+    return final_feature_data_na, blocker_encode_map, rusher_encode_map
 
 
 if __name__ == "__main__":
