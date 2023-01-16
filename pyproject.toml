@@ -14,6 +14,7 @@ sklearn = "^0.0.post1"
 plotly = "^5.11.0"
 statsmodels = "^0.13.5"
 matplotlib = "^3.6.3"
+scikit-learn = "^1.2.0"
 
 
 [build-system]
