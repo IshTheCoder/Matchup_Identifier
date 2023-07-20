@@ -20,7 +20,7 @@ def possession_to_voxel(
         [
             val
             for val in data.groupby("time")
-            .apply(lambda x: x[["x_qb", "y_qb"]].head(1).values.flatten())
+            .apply(lambda x: x[["x_smooth_qb", "y_smooth_qb"]].head(1).values.flatten())
             .reset_index()
             .sort_values("time")[0]
         ]
@@ -28,7 +28,7 @@ def possession_to_voxel(
 
     D = np.stack(
         data.groupby(["nflId", "time"])
-        .apply(lambda x: x[["x", "y"]].head(1).values.flatten())
+        .apply(lambda x: x[["x_smooth", "y_smooth"]].head(1).values.flatten())
         .reset_index()
         .groupby("nflId")
         .apply(lambda x: np.array(x.sort_values("time")[0].values.tolist()))
@@ -39,7 +39,7 @@ def possession_to_voxel(
 
     O = np.stack(
         data.groupby(["nflId_pr", "time"])
-        .apply(lambda x: x[["x_pr", "y_pr"]].head(1).values.flatten())
+        .apply(lambda x: x[["x_smooth_pr", "y_smooth_pr"]].head(1).values.flatten())
         .reset_index()
         .groupby("nflId_pr")
         .apply(lambda x: np.array(x.sort_values("time")[0].values.tolist()))
