@@ -60,6 +60,24 @@ if __name__ == "__main__":
 
     basic_model = pm.Model()
 
+    (
+        rusher_id_batch,
+        blocker_id_batch,
+        offense_id_batch,
+        defense_id_batch,
+        design_matrix_batch,
+        blocker_design_matrix_batch,
+        target_batch,
+    ) = pm.Minibatch(
+        rusher_identifier,
+        blocker_identifier,
+        offense_identifier,
+        defense_identifier,
+        design_matrix,
+        blocker_design_matrix,
+        target,
+        batch_size=256,
+    )
     with basic_model:
         # Priors for unknown model parameters
 
@@ -85,19 +103,26 @@ if __name__ == "__main__":
         )
         # Expected value of outcome
         mu = (
-            beta_rusher[rusher_identifier]
-            + beta_offense[offense_identifier]
-            + beta_defense[defense_identifier]
-            + pm.math.dot(blocker_design_matrix, beta_blocker)
-            + pm.math.dot(design_matrix, beta_covariates)
+            beta_rusher[rusher_id_batch]
+            + beta_offense[offense_id_batch]
+            + beta_defense[defense_id_batch]
+            + pm.math.dot(blocker_design_matrix_batch, beta_blocker)
+            + pm.math.dot(design_matrix_batch, beta_covariates)
             + intercept
         )
 
         # Likelihood (sampling distribution) of observations
-        Y_obs = pm.Normal("Y_obs", mu=mu, sigma=sigma, observed=target)
+        likelihood = pm.Normal(
+            "likelihood",
+            mu=mu,
+            sigma=sigma,
+            observed=target_batch,
+            total_size=target.shape,
+        )
         print("created basic model")
     with basic_model:
         # draw 1000 posterior samples
-        print("beginning sampling")
-        idata = pm.sample(chains=4, cores=1, return_inferencedata=True)
+        print("beginning variational inference")
+        # idata = pm.sample(chains = 4, cores = 1, return_inferencedata=True)
+        idata = pm.fit(method="advi")
         idata.to_netcdf("pymc_posterior_sample_frame_level_strain.nc")
