@@ -146,13 +146,31 @@ def generate_features(
             )
         )
     }
+
+    qb_encode_map = {
+        index: val for index, val in enumerate(set(final_feature_data["nflId_qb"]))
+    }
     final_feature_data_na = final_feature_data.dropna()
     final_feature_data_na = final_feature_data[
         (~np.isinf(final_feature_data.strain_acceleration))
         & (~np.isinf(final_feature_data.strain_rate))
     ]
-    return final_feature_data_na, blocker_encode_map, rusher_encode_map
+    final_feature_data_na["y_jt"] = final_feature_data_na[
+        "strain_acceleration"
+    ] * final_feature_data_na["assignment_dict"].apply(lambda x: sum(x.values()))
+    return final_feature_data_na, blocker_encode_map, rusher_encode_map, qb_encode_map
 
 
 if __name__ == "__main__":
+    import pandas as pd
+    import pickle
+
     generate_acceleration_data()
+    final_feature_data, blocker_map, rusher_map, qb_map = generate_features(
+        pd.read_csv("assignment_data.csv"),
+        pd.read_csv("processed_data/pass_rusher_features.csv"),
+    )
+    pickle.dump(blocker_map, open("blocker_encoding.pkl", "wb"))
+    pickle.dump(rusher_map, open("rusher_encoding.pkl", "wb"))
+    pickle.dump(qb_map, open("qb_encoding.pkl", "wb"))
+    final_feature_data.to_csv("strain_design_data.csv", index=False)
