@@ -14,14 +14,16 @@ if __name__ == "__main__":
         "grouped_pass_blocker_position": "first",
         "grouped_pass_rusher_position": "first",
         "strain_rate": "mean",
-        "num_blockers": "first",
         "assigned_blocker_id": "first",
+        "total_assignment_dict": "mean",
     }
+
     feature_data["assignment_dict"] = feature_data["assignment_dict"].apply(
         lambda x: ast.literal_eval(x)
     )
-    feature_data["num_blockers"] = feature_data["assignment_dict"].apply(
-        lambda x: len(x)
+
+    feature_data["total_assignment_dict"] = feature_data["assignment_dict"].apply(
+        lambda x: sum(x.values())
     )
     feature_data["assigned_blocker_id"] = feature_data["assignment_dict"].apply(
         lambda x: max(x, key=x.get)
@@ -66,7 +68,7 @@ if __name__ == "__main__":
                 "grouped_pass_blocker_position",
                 "grouped_pass_rusher_position",
                 "strain_rate",
-                "num_blockers",
+                "total_assignment_dict",
                 "assigned_blocker_id",
             ]
         ]
@@ -74,10 +76,6 @@ if __name__ == "__main__":
         .agg(agg_dict)
         .reset_index()
     )
-
-    feature_data = feature_data[
-        ~feature_data["grouped_pass_rusher_position"].isin(["G", "RB"])
-    ]
 
     target = feature_data["strain_rate"]
 
@@ -96,7 +94,7 @@ if __name__ == "__main__":
         "down",
         "grouped_pass_blocker_position",
         "grouped_pass_rusher_position",
-    ] + ["yardsToGo", "num_blockers"]
+    ] + ["yardsToGo", "total_assignment_dict"]
 
     design_matrix = pd.get_dummies(
         feature_data[covariate_columns],
@@ -152,6 +150,9 @@ if __name__ == "__main__":
         # draw 1000 posterior samples
         print("beginning sampling")
         idata = pm.sample(
-            chains=4, return_inferencedata=True, idata_kwargs={"log_likelihood": True}
+            chains=4,
+            cores=1,
+            return_inferencedata=True,
+            idata_kwargs={"log_likelihood": True},
         )
-        idata.to_netcdf("pymc_posterior_sample_play_level_strain.nc")
+        idata.to_netcdf("pymc_posterior_sample_play_level_strain_effective_blockers.nc")

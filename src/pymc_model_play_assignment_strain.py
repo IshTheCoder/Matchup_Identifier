@@ -1,43 +1,26 @@
 if __name__ == "__main__":
     import pymc as pm
     import pandas as pd
+    import numpy as np
+    from functools import reduce
     import ast
+
+    def reducer(accumulator, element):
+        for key, value in element.items():
+            accumulator[key] = accumulator.get(key, 0) + value
+        return accumulator
 
     print("loading necessary data")
     feature_data = pd.read_csv("strain_design_data.csv")
 
-    agg_dict = {
-        "down": "first",
-        "yardsToGo": "first",
-        "possessionTeam": "first",
-        "defensiveTeam": "first",
-        "grouped_pass_blocker_position": "first",
-        "grouped_pass_rusher_position": "first",
-        "strain_rate": "mean",
-        "num_blockers": "first",
-        "assigned_blocker_id": "first",
-    }
-    feature_data["assignment_dict"] = feature_data["assignment_dict"].apply(
-        lambda x: ast.literal_eval(x)
-    )
-    feature_data["num_blockers"] = feature_data["assignment_dict"].apply(
-        lambda x: len(x)
-    )
-    feature_data["assigned_blocker_id"] = feature_data["assignment_dict"].apply(
-        lambda x: max(x, key=x.get)
-    )
     feature_data["grouped_pass_rusher_position"] = feature_data[
         "officialPosition"
     ].apply(lambda x: "S" if x in ["SS", "FS", "CB"] else x)
     feature_data["grouped_pass_rusher_position"] = feature_data[
         "grouped_pass_rusher_position"
     ].apply(lambda x: "I" if x in ["MLB", "ILB", "LB"] else x)
-    feature_data = feature_data[
-        ~feature_data["grouped_pass_rusher_position"].isin(["G", "RB"])
-    ]
 
     plays = pd.read_csv("data/plays.csv")
-    players = pd.read_csv("data/players.csv")
     feature_data = feature_data.merge(
         plays[
             ["gameId", "playId", "possessionTeam", "defensiveTeam", "down", "yardsToGo"]
@@ -45,13 +28,29 @@ if __name__ == "__main__":
         on=["gameId", "playId"],
     )
 
-    feature_data = feature_data.merge(
-        players[["nflId", "officialPosition"]].rename(
-            axis=1, mapper={"officialPosition": "grouped_pass_blocker_position"}
-        ),
-        left_on=["assigned_blocker_id"],
-        right_on=["nflId"],
+    feature_data = feature_data[
+        ~feature_data["grouped_pass_rusher_position"].isin(["G", "RB"])
+    ]
+    feature_data["assignment_dict"] = feature_data["assignment_dict"].apply(
+        lambda x: ast.literal_eval(x)
     )
+
+    agg_dict = {
+        "down": "first",
+        "yardsToGo": "first",
+        "possessionTeam": "first",
+        "defensiveTeam": "first",
+        "grouped_pass_rusher_position": "first",
+        "strain_rate": "mean",
+        "frameId": "count",
+    }
+
+    total_attention = (
+        feature_data.groupby(["playId", "gameId", "nflId_pr"])
+        .apply(lambda x: reduce(reducer, x.assignment_dict.values.tolist(), {}))
+        .reset_index()
+    )
+    total_attention.rename(inplace=True, axis=1, mapper={0: "assignment_dict"})
 
     feature_data = (
         feature_data[
@@ -63,48 +62,57 @@ if __name__ == "__main__":
                 "yardsToGo",
                 "possessionTeam",
                 "defensiveTeam",
-                "grouped_pass_blocker_position",
                 "grouped_pass_rusher_position",
                 "strain_rate",
-                "num_blockers",
-                "assigned_blocker_id",
+                "assignment_dict",
+                "frameId",
             ]
         ]
         .groupby(["playId", "gameId", "nflId_pr"])
         .agg(agg_dict)
         .reset_index()
-    )
-
-    feature_data = feature_data[
-        ~feature_data["grouped_pass_rusher_position"].isin(["G", "RB"])
-    ]
+    ).merge(total_attention)
 
     target = feature_data["strain_rate"]
 
-    n_blockers = len(feature_data["assigned_blocker_id"].unique())
+    all_blockers = set().union(*(d.keys() for d in feature_data["assignment_dict"]))
+
+    n_blockers = len(all_blockers)
     n_rushers = len(feature_data["nflId_pr"].unique())
     n_offense = len(feature_data["possessionTeam"].unique())
     n_defense = len(feature_data["defensiveTeam"].unique())
 
+    blocker_map = {key: val for val, key in enumerate(all_blockers)}
+
     N = feature_data.shape[0]
+    print("making design matrix for blockers")
+    blocker_design_matrix = np.zeros((N, n_blockers))
+    i = 0
+    for _, row in feature_data.iterrows():
+        assignment_map = row["assignment_dict"]
+        blocker_design_matrix[
+            i, [blocker_map[nfl_id] for nfl_id in assignment_map.keys()]
+        ] = list(assignment_map.values())
+        blocker_design_matrix[
+            i, [blocker_map[nfl_id] for nfl_id in assignment_map.keys()]
+        ] /= row["frameId"]
+        i += 1
+
+    print("finished making design matrix for blockers")
+
     rusher_identifier = pd.factorize(feature_data["nflId_pr"])[0]
-    blocker_identifier = pd.factorize(feature_data["assigned_blocker_id"])[0]
+
     offense_identifier = pd.factorize(feature_data["possessionTeam"])[0]
     defense_identifier = pd.factorize(feature_data["defensiveTeam"])[0]
 
     covariate_columns = [
         "down",
-        "grouped_pass_blocker_position",
         "grouped_pass_rusher_position",
-    ] + ["yardsToGo", "num_blockers"]
+    ] + ["yardsToGo"]
 
     design_matrix = pd.get_dummies(
         feature_data[covariate_columns],
-        columns=[
-            "down",
-            "grouped_pass_blocker_position",
-            "grouped_pass_rusher_position",
-        ],
+        columns=["down", "grouped_pass_rusher_position"],
         drop_first=True,
     ).to_numpy()
 
@@ -137,7 +145,7 @@ if __name__ == "__main__":
         )
         # Expected value of outcome
         mu = (
-            beta_blocker[blocker_identifier]
+            pm.math.dot(blocker_design_matrix, beta_blocker)
             + beta_rusher[rusher_identifier]
             + beta_offense[offense_identifier]
             + beta_defense[defense_identifier]
@@ -154,4 +162,4 @@ if __name__ == "__main__":
         idata = pm.sample(
             chains=4, return_inferencedata=True, idata_kwargs={"log_likelihood": True}
         )
-        idata.to_netcdf("pymc_posterior_sample_play_level_strain.nc")
+        idata.to_netcdf("pymc_posterior_sample_play_level_assignment_strain.nc")

@@ -39,9 +39,9 @@ if __name__ == "__main__":
         )
         beta_qb = pm.Normal("beta_qb", mu=0, sigma=sigma_qb, shape=n_qbs)
         # Expected value of outcome
-        mu = (beta_rusher[rusher_identifier] - beta_qb[qb_identifier]) - pm.math.dot(
-            design_matrix, beta_blocker
-        ) * strain_velo
+        mu = (
+            beta_rusher[rusher_identifier] - beta_qb[qb_identifier]
+        ) - 0.5 * pm.math.dot(design_matrix, beta_blocker) * strain_velo
 
         # Likelihood (sampling distribution) of observations
         Y_obs = pm.Normal("Y_obs", mu=mu, sigma=sigma, observed=target)

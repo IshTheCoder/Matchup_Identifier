@@ -1925,14 +1925,14 @@ files = [
 
 [[package]]
 name = "pymc"
-version = "5.7.2"
+version = "5.9.1"
 description = "Probabilistic Programming in Python: Bayesian Modeling and Probabilistic Machine Learning with PyTensor"
 category = "main"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "pymc-5.7.2-py3-none-any.whl", hash = "sha256:6e0abb0231fdecb7904968c81b7a66b06a4e399ffa68dcdb6f758786a782eae6"},
-    {file = "pymc-5.7.2.tar.gz", hash = "sha256:d0fdb19226b945d5d2b6941875d4ab88b6f0a1dc5eeaf80989e16694235c74f9"},
+    {file = "pymc-5.9.1-py3-none-any.whl", hash = "sha256:3b354a6377290c826d642c8c5133ffa1dcf5fbe1c787cc345320dcf0b07686d6"},
+    {file = "pymc-5.9.1.tar.gz", hash = "sha256:89a02de4c415e21d6c11995f438b809e0629ce0739f303972cd8dd34be0f1271"},
 ]
 
 [package.dependencies]
@@ -1942,7 +1942,7 @@ cloudpickle = "*"
 fastprogress = ">=0.2.0"
 numpy = ">=1.15.0"
 pandas = ">=0.24.0"
-pytensor = ">=2.14.1,<2.15"
+pytensor = ">=2.17.0,<2.18"
 scipy = ">=1.4.1"
 typing-extensions = ">=3.7.4"
 
@@ -2071,28 +2071,28 @@ setuptools = "*"
 
 [[package]]
 name = "pytensor"
-version = "2.14.2"
+version = "2.17.3"
 description = "Optimizing compiler for evaluating mathematical expressions on CPUs and GPUs."
 category = "main"
 optional = false
-python-versions = ">=3.9"
+python-versions = "<3.12,>=3.9"
 files = [
-    {file = "pytensor-2.14.2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:c6c9451872b06624d901f82a23472c222afff2bd375c982f667d9a4d29a7610f"},
-    {file = "pytensor-2.14.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c945318cae0977c28a64ca528ab3ae3061ccc13b457e28267078a5376866dfae"},
-    {file = "pytensor-2.14.2-cp310-cp310-musllinux_1_1_i686.whl", hash = "sha256:5949e59efeea36b645dc946de55210472adaafbc4d2dbd713a60ebb2bd2ee592"},
-    {file = "pytensor-2.14.2-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:0b5f70815b100467e3f9d27bc0e6727ba5aff0696422a311ae0ba4e05ff1830c"},
-    {file = "pytensor-2.14.2-cp310-cp310-win_amd64.whl", hash = "sha256:3bc7b89fbe08b397f65f0788054e48225b664d81aaa9ac2950bd84b5f000215c"},
-    {file = "pytensor-2.14.2-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:c1bfdc8f68c18b54fab29361f0b414f7f8625d18ce45e429eac01b08a0a0efce"},
-    {file = "pytensor-2.14.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:77dc11df11d063ca8f49267e29064ab4e24b51336635c732b46065d1f77b6876"},
-    {file = "pytensor-2.14.2-cp311-cp311-musllinux_1_1_i686.whl", hash = "sha256:8047dc6a9f356f8c6e5256a517879655e04c962554d555204a224fe5d4a283dc"},
-    {file = "pytensor-2.14.2-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:162a69c279169ba6f4a8b8d1762a2c76da8ca0237cdc627a02a587752b24381f"},
-    {file = "pytensor-2.14.2-cp311-cp311-win_amd64.whl", hash = "sha256:3298343190805fb8f17d8be9366f0a47ce94a6b647980afab8f7fac144b7c701"},
-    {file = "pytensor-2.14.2-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:10395be847d4ac5553118b19c753cc64f614c691ea47c7d91bb511997d26ceb2"},
-    {file = "pytensor-2.14.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b88893cb98eb729429f1429da8a81c13bcc2f5823eaef149f069a5a6721f4ad4"},
-    {file = "pytensor-2.14.2-cp39-cp39-musllinux_1_1_i686.whl", hash = "sha256:bdfa6641773d0eb0a63801f8d23061e140c2ef849d72c59ae5b71b2afc42b38c"},
-    {file = "pytensor-2.14.2-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:adb7971df6914c149904fd2b6b653c705a1f6770707cb9dfd94c64f85aa366a4"},
-    {file = "pytensor-2.14.2-cp39-cp39-win_amd64.whl", hash = "sha256:3dfbf59d9370eb0077f6ca0a2947753536d3a92845f255e3b10243be990c1089"},
-    {file = "pytensor-2.14.2.tar.gz", hash = "sha256:dbafae9ce4264e0e5d1e02b2214da3187ca51e99f43a1a2245e5c0d839cf3dfa"},
+    {file = "pytensor-2.17.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:5ec22d7f85b949134129f528e225869e958f1e1c82ee1fea415d5dbcedd222c5"},
+    {file = "pytensor-2.17.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:45ad78ed1ed2e0cbf6ebfdd7108ec406081c27dc2b64384c19c5163147b9dbbe"},
+    {file = "pytensor-2.17.3-cp310-cp310-musllinux_1_1_i686.whl", hash = "sha256:a9f39142c09516f7bad692560dd2aa323f09b72f868e8a3f75a28ef6b573d8db"},
+    {file = "pytensor-2.17.3-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:64ed96268b15d227e5ede9d42e4b0f5571ed89f1a6fb1a11ee7f4dd0c428926f"},
+    {file = "pytensor-2.17.3-cp310-cp310-win_amd64.whl", hash = "sha256:436fd5b967e9ca26b298534179a980ef2c8a3e32daa23fa7995df86446383508"},
+    {file = "pytensor-2.17.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:9339d205f4d8d6bf14955cb4a3eb3a242f2f9d20b355f7d8556e82c12935534d"},
+    {file = "pytensor-2.17.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:94deedf8baf0c84981f0d324b8118ec7b0423ca8213145f26728a2733cabcdfb"},
+    {file = "pytensor-2.17.3-cp311-cp311-musllinux_1_1_i686.whl", hash = "sha256:fb4b2d9793652f8859f71435a7a409d3b53d7b183ba0c2c2534bdf6fbb463fe3"},
+    {file = "pytensor-2.17.3-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:4c5459056287e5468ac48173beb0779a56d47548233497fe1949261bfb9d39c1"},
+    {file = "pytensor-2.17.3-cp311-cp311-win_amd64.whl", hash = "sha256:7ee098606b56aa3bbb75281caa8f2c3beb662a23cd86043b314bb3b2bf2f326a"},
+    {file = "pytensor-2.17.3-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:f6dfa4786da8cbb51460f602c16d278339d981e4f1cb7ef8373ad3b2d69b8f58"},
+    {file = "pytensor-2.17.3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bf99668c203d6b8b51661a1a4a785ad6e7d7c864c61c37cff90c854d962fa850"},
+    {file = "pytensor-2.17.3-cp39-cp39-musllinux_1_1_i686.whl", hash = "sha256:7039ff000c6c19a108925be2d432ac7187982fb88cea6a1acbd6a946d75c0bef"},
+    {file = "pytensor-2.17.3-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:fc09cf56642bb9fc771390dec1235ad4887e8e758d618a577732181780a92bed"},
+    {file = "pytensor-2.17.3-cp39-cp39-win_amd64.whl", hash = "sha256:5f6d9141f2e8897c6f6fc52f29ffc0777603dafd35b26fa8a74959796d7556fc"},
+    {file = "pytensor-2.17.3.tar.gz", hash = "sha256:e697fdca3f41bb4c4e4696ef8a7e5b4fe992db0a643d2b161e5f0458ae23ab46"},
 ]
 
 [package.dependencies]
@@ -2101,7 +2101,7 @@ etuples = "*"
 filelock = "*"
 logical-unification = "*"
 miniKanren = "*"
-numpy = ">=1.17.0"
+numpy = ">=1.17.0,<1.26"
 scipy = ">=0.14"
 setuptools = ">=48.0.0"
 typing-extensions = "*"
