@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "matchup_identifier"}]
 
 [tool.poetry.dependencies]
-python = "^3.8.7"
+python = ">=3.9,<3.11"
 pandas = "^1.5.2"
 numpy = "^1.24.0"
 sklearn = "^0.0.post1"
@@ -15,6 +15,13 @@ plotly = "^5.11.0"
 statsmodels = "^0.13.5"
 matplotlib = "^3.6.3"
 scikit-learn = "^1.2.0"
+pykalman = "^0.9.5"
+pystan = "^3.7.0"
+nest-asyncio = "^1.5.7"
+pymc = "^5.7.2"
+numpyro = "^0.12.1"
+arviz = "^0.16.1"
+ipykernel = "^6.25.1"
 
 
 [build-system]

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from itertools import chain
+from typing import Tuple
 
 
 weeks_used = 8
@@ -65,32 +66,16 @@ def generate_acceleration_data():
         pr_filtered = filtered_processed
 
         #### create physics features
-        pr_filtered["dx_pr"] = pr_filtered.groupby(
-            ["gameId", "playId", "nflId_pr", "nflId"]
-        )["x_pr"].transform(lambda x: np.gradient(x, 0.1))
-        pr_filtered["dy_pr"] = pr_filtered.groupby(
-            ["gameId", "playId", "nflId_pr", "nflId"]
-        )["y_pr"].transform(lambda x: np.gradient(x, 0.1))
-        pr_filtered["dx_qb"] = pr_filtered.groupby(
-            ["gameId", "playId", "nflId_pr", "nflId"]
-        )["x_qb"].transform(lambda x: np.gradient(x, 0.1))
-        pr_filtered["dy_qb"] = pr_filtered.groupby(
-            ["gameId", "playId", "nflId_pr", "nflId"]
-        )["y_qb"].transform(lambda x: np.gradient(x, 0.1))
-        pr_filtered["x_pr_qb"] = pr_filtered["x_qb"] - pr_filtered["x_pr"]
-        pr_filtered["y_pr_qb"] = pr_filtered["y_qb"] - pr_filtered["y_pr"]
-        pr_filtered["d2y_pr"] = pr_filtered.groupby(
-            ["gameId", "playId", "nflId_pr", "nflId"]
-        )["dy_pr"].transform(lambda x: np.gradient(x, 0.1))
-        pr_filtered["d2x_pr"] = pr_filtered.groupby(
-            ["gameId", "playId", "nflId_pr", "nflId"]
-        )["dx_pr"].transform(lambda x: np.gradient(x, 0.1))
+
+        pr_filtered["x_pr_qb"] = pr_filtered["x_smooth_qb"] - pr_filtered["x_smooth_pr"]
+        pr_filtered["y_pr_qb"] = pr_filtered["y_smooth_qb"] - pr_filtered["y_smooth_pr"]
+
         pr_filtered["pr_qb_norm"] = (
             pr_filtered["x_pr_qb"] ** 2 + pr_filtered["y_pr_qb"] ** 2
         )
         pr_filtered["scalar_projection"] = (
-            pr_filtered["x_pr_qb"] * pr_filtered["d2x_pr"]
-            + pr_filtered["y_pr_qb"] * pr_filtered["d2y_pr"]
+            pr_filtered["x_pr_qb"] * pr_filtered["d2x_smooth_pr"]
+            + pr_filtered["y_pr_qb"] * pr_filtered["d2y_smooth_pr"]
         ) / pr_filtered["pr_qb_norm"]
         pr_filtered["d2y_pr_qb"] = (
             pr_filtered["scalar_projection"] * pr_filtered["y_pr_qb"]
@@ -101,8 +86,8 @@ def generate_acceleration_data():
 
         ### calculate strain
         pr_filtered["d_ij"] = np.sqrt(
-            np.square(pr_filtered["x_pr"] - pr_filtered["x_qb"])
-            + np.square(pr_filtered["y_pr"] - pr_filtered["y_qb"])
+            np.square(pr_filtered["x_smooth_pr"] - pr_filtered["x_smooth_qb"])
+            + np.square(pr_filtered["y_smooth_pr"] - pr_filtered["y_smooth_qb"])
         )
         pr_filtered["strain_rate"] = pr_filtered.groupby(
             ["gameId", "playId", "nflId_pr", "nflId"]
@@ -161,13 +146,31 @@ def generate_features(
             )
         )
     }
+
+    qb_encode_map = {
+        index: val for index, val in enumerate(set(final_feature_data["nflId_qb"]))
+    }
     final_feature_data_na = final_feature_data.dropna()
     final_feature_data_na = final_feature_data[
         (~np.isinf(final_feature_data.strain_acceleration))
         & (~np.isinf(final_feature_data.strain_rate))
     ]
-    return final_feature_data_na, blocker_encode_map, rusher_encode_map
+    final_feature_data_na["y_jt"] = final_feature_data_na[
+        "strain_acceleration"
+    ] * final_feature_data_na["assignment_dict"].apply(lambda x: sum(x.values()))
+    return final_feature_data_na, blocker_encode_map, rusher_encode_map, qb_encode_map
 
 
 if __name__ == "__main__":
+    import pandas as pd
+    import pickle
+
     generate_acceleration_data()
+    final_feature_data, blocker_map, rusher_map, qb_map = generate_features(
+        pd.read_csv("assignment_data.csv"),
+        pd.read_csv("processed_data/pass_rusher_features.csv"),
+    )
+    pickle.dump(blocker_map, open("blocker_encoding.pkl", "wb"))
+    pickle.dump(rusher_map, open("rusher_encoding.pkl", "wb"))
+    pickle.dump(qb_map, open("qb_encoding.pkl", "wb"))
+    final_feature_data.to_csv("strain_design_data.csv", index=False)
