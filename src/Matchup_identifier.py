@@ -51,10 +51,12 @@ def smooth_data_x(data, transition_covariance, observation_covariance):
 for i, f in enumerate(all_files):
     df_ngs = pd.read_csv(f)
 
-    df_ngs["dx"] = np.cos(df_ngs["dir"]) * df_ngs["s"]
-    df_ngs["dy"] = np.sin(df_ngs["dir"]) * df_ngs["s"]
-    df_ngs["d2y"] = np.sin(df_ngs["dir"]) * df_ngs["a"]
-    df_ngs["d2x"] = np.cos(df_ngs["dir"]) * df_ngs["a"]
+    df_ngs["dx"] = np.cos(np.deg2rad(df_ngs["dir"])) * df_ngs["s"]
+    df_ngs["dy"] = np.sin(np.deg2rad(df_ngs["dir"])) * df_ngs["s"]
+    df_ngs["d2y"] = np.sin(np.deg2rad(df_ngs["dir"])) * df_ngs["a"]
+    df_ngs["d2x"] = np.cos(np.deg2rad(df_ngs["dir"])) * df_ngs["a"]
+
+    print(f"smoothing week {i}")
 
     smoothed_data_x = (
         df_ngs.groupby(["nflId", "gameId", "playId"], group_keys=True)
@@ -143,6 +145,7 @@ for i, f in enumerate(all_files):
             "y_smooth",
             "dy_smooth",
             "d2y_smooth",
+            "dir",
             "officialPosition",
         ]
     ]
@@ -159,6 +162,7 @@ for i, f in enumerate(all_files):
             "y_smooth",
             "dy_smooth",
             "d2y_smooth",
+            "dir",
             "officialPosition",
         ]
     ]
@@ -182,3 +186,4 @@ for i, f in enumerate(all_files):
     df_final.sort_values(["nflId", "nflId_pr", "time"]).to_csv(
         f"data/sample_data_week_{i}.csv", index=False
     )
+    print(f"finished week {i}")

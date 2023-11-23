@@ -28,7 +28,7 @@ def possession_to_voxel(
 
     D = np.stack(
         data.groupby(["nflId", "time"])
-        .apply(lambda x: x[["x_smooth", "y_smooth"]].head(1).values.flatten())
+        .apply(lambda x: x[["x_smooth", "y_smooth", "dir_pb"]].head(1).values.flatten())
         .reset_index()
         .groupby("nflId")
         .apply(lambda x: np.array(x.sort_values("time")[0].values.tolist()))
@@ -39,7 +39,9 @@ def possession_to_voxel(
 
     O = np.stack(
         data.groupby(["nflId_pr", "time"])
-        .apply(lambda x: x[["x_smooth_pr", "y_smooth_pr"]].head(1).values.flatten())
+        .apply(
+            lambda x: x[["x_smooth_pr", "y_smooth_pr", "dir"]].head(1).values.flatten()
+        )
         .reset_index()
         .groupby("nflId_pr")
         .apply(lambda x: np.array(x.sort_values("time")[0].values.tolist()))
@@ -72,6 +74,6 @@ def voxels_to_design_response(
         np.repeat(B[:, np.newaxis, :], j, axis=1)[:, np.newaxis, :, :], k, axis=1
     )
     I = np.hstack([I.flatten(), I.flatten()])
-    X = np.column_stack([O.flatten(), B.flatten()])
-    y = D.flatten()[:, np.newaxis]
+    X = np.column_stack([O[:, :, :, 0:2].flatten(), B.flatten()])
+    y = D[:, :, :, 0:2].flatten()[:, np.newaxis]
     return X, y, I
