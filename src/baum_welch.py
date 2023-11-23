@@ -3,7 +3,7 @@ from typing import List, Tuple
 
 import numpy as np
 from scipy.linalg import solve
-from scipy.stats import norm
+from scipy.stats import norm, beta
 
 from data_processing import voxels_to_design_response
 
@@ -74,8 +74,8 @@ def expectation_matchup_step(
         sigma_hat (float): variance estimate of player position
         rho_hat (float): transition probability from one player assignment to another
         forward_result (np.ndarray): k length vector indicating initial distribution over state for latent state
-        D (np.ndarray): t x 2 dimensional vector of offensive player positions (x,y)
-        O (np.ndarray): t x k x 2 dimensional tensor of defensive player positions (x,y)
+        D (np.ndarray): t x 3 dimensional vector of offensive player positions and orientation (x,y,o)
+        O (np.ndarray): t x k x 3 dimensional tensor of defensive player positions and orientation (x,y,o)
         B (np.ndarray): t x 2 dimensional vector of ball carrier positions (x,y)
         iterations (int): when to stop algorithm
 
@@ -92,33 +92,57 @@ def expectation_matchup_step(
     )  ## extend ballcarrier k times B has same shape as O
 
     O_B_stacked = np.stack(
-        (O, B), axis=-1
+        (O[:, :, 0:2], B[:, :, 0:2]), axis=-1
     )  ## new matrix with 4 dimensions (t x 2 x k x 2)
 
     expected_centroid = np.squeeze(
         np.matmul(O_B_stacked, tau_hat)
     )  ## gets convex combination of expected offensive lineman centroid for each possible defender
     pdf_location_difference = norm(loc=expected_centroid, scale=np.sqrt(sigma_hat)).pdf(
-        D
+        D[:, :, 0:2]
     )
     pdf_location_difference = np.prod(
         pdf_location_difference, -1
     )  ## since x,y independent normal we multily their densities
-    pdf_location_difference /= pdf_location_difference.sum(axis=1, keepdims=True)
+
+    rusher_orientation = np.cos(np.deg2rad(O[:, :, -1]))
+    blocker_orientation = -1 * rusher_orientation
+
+    rusher_orientation_scaled = 0.5 * (rusher_orientation + 1)
+    blocker_orientation_scaled = 0.5 * (blocker_orientation + 1)
+
+    rusher_orientation_scaled[rusher_orientation_scaled == 0] = 0.001
+    rusher_orientation_scaled[rusher_orientation_scaled == 1] = 0.999
+
+    blocker_orientation_scaled[blocker_orientation_scaled == 0] = 0.001
+    blocker_orientation_scaled[blocker_orientation_scaled == 1] = 0.999
+
+    beta_variance = 0.85 * (rusher_orientation_scaled) * (1 - rusher_orientation_scaled)
+    alpha_param = np.power(rusher_orientation_scaled, 2) * (
+        (1 - rusher_orientation_scaled) / beta_variance - 1 / rusher_orientation_scaled
+    )
+    beta_param = alpha_param * (1 / rusher_orientation_scaled - 1)
+
+    pdf_orientation_difference = beta(alpha_param, beta_param).pdf(
+        blocker_orientation_scaled
+    )
+
+    pdf_emission = pdf_location_difference * pdf_orientation_difference
+    pdf_emission /= pdf_emission.sum(axis=1, keepdims=True)
 
     transition_matrix = np.zeros((k, k))  ### state transition matrix
     np.fill_diagonal(transition_matrix, rho_hat)
     transition_matrix[transition_matrix == 0] = (1 - rho_hat) / (k - 1)
 
     forward_result = forward_procedure(
-        pdf_location_difference, forward_result, transition_matrix, t
+        pdf_emission, forward_result, transition_matrix, t
     )
-    backward_result = backward_procedure(pdf_location_difference, transition_matrix, t)
+    backward_result = backward_procedure(pdf_emission, transition_matrix, t)
 
     lam_normalized = calculate_lambda(forward_result, backward_result)
 
     eta = calculate_eta(
-        backward_result, pdf_location_difference, forward_result, transition_matrix
+        backward_result, pdf_emission, forward_result, transition_matrix
     )
 
     return lam_normalized, eta
@@ -308,6 +332,7 @@ def expectation_matchup_possession(
             O,
             B,
         )
+
         I_list.append(I)
         A_list.append(A)
     A_stack = np.stack(A_list, 1)
@@ -342,6 +367,7 @@ def expectation_maximization_possession(
     I, A = expectation_matchup_possession(
         tau_init, sigma_init, rho_init, forward_result, D, O, B
     )  ### expectation step
+
     ### rho update
     rho_new = maximize_rho_possession(A)
 
@@ -390,6 +416,7 @@ def expectation_maximization(
         I, A = expectation_matchup_possession(
             tau_init, sigma_init, rho_init, forward_result[i], D[i], O[i], B[i]
         )  ### expectation step
+
         X, y, Sigma = voxels_to_design_response(D[i], O[i], B[i], I)
         Sigma_list.append(Sigma)
         y_list.append(y)
@@ -405,6 +432,7 @@ def expectation_maximization(
         Sigma_new, tau_init, X_new, y_new, sigma_init
     )
     lik_2 = calculate_log_likelihood_probability(rho_init, A_list)
+
     print(f"Total Likelihood: {lik_2 - lik}")
 
     ### rho update

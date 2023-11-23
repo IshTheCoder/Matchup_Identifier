@@ -165,7 +165,7 @@ if __name__ == "__main__":
     import pandas as pd
     import pickle
 
-    generate_acceleration_data()
+    # generate_acceleration_data()
     final_feature_data, blocker_map, rusher_map, qb_map = generate_features(
         pd.read_csv("assignment_data.csv"),
         pd.read_csv("processed_data/pass_rusher_features.csv"),
