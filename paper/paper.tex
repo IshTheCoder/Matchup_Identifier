@@ -1,0 +1,515 @@
+\documentclass[USenglish]{article}	
+% for 2-column layout use \documentclass[USenglish,twocolumn]{article}
+
+\usepackage[utf8]{inputenc}				%(only for the pdftex engine)
+%\RequirePackage[no-math]{fontspec}[2017/03/31]%(only for the luatex or the xetex engine)
+\usepackage[big,online]{dgruyter}	%values: small,big | online,print,work
+\usepackage{lmodern} 
+\usepackage{microtype}
+\usepackage{natbib}
+\usepackage{subcaption}
+\usepackage[title,toc,titletoc,page]{appendix}
+\usepackage{graphicx}            % \resizebox for the wide appendix display
+\setlength{\tabcolsep}{3pt}      % tighten column padding so side-by-side subtables fit
+\setlength{\emergencystretch}{1em}
+
+
+% New theorem-like environments will be introduced by using the commands \theoremstyle and \newtheorem.
+% Please note that the environments proof and definition are already defined within dgryuter.sty.
+\theoremstyle{dgthm}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{assertion}{Assertion}
+\newtheorem{result}{Result}
+\newtheorem{conclusion}{Conclusion}
+
+\theoremstyle{dgdef}
+\newtheorem{definition}{Definition}
+\newtheorem{example}{Example}
+\newtheorem{remark}{Remark}
+
+\begin{document}
+
+	
+%%%--------------------------------------------%%%
+%\articletype{Research Article}
+%\received{Month	DD, YYYY}
+%\revised{Month	DD, YYYY}
+%\accepted{Month	DD, YYYY}
+%\journalname{De~Gruyter~Journal}
+%\journalyear{YYYY}
+%\journalvolume{XX}
+%\journalissue{X}
+%\startpage{1}
+%\aop
+%\DOI{10.1515/sample-YYYY-XXXX}
+%%%--------------------------------------------%%%
+
+\title{Blocking is a Drag: A Physics-Based Approach to Modeling Offensive Linemen Effectiveness in American Football}
+\runningtitle{Blocking is a Drag}
+%\subtitle{Insert subtitle if needed}
+
+\author*[1]{Abhijit Brahme}
+%\ use * to mark the author as the corresponding author
+\author[2]{Ishan Mehta}
+\author[3]{Gregory J. Matthews}
+\author[4]{Quang Nguyen}
+\author[5]{Ronald Yurko}
+\runningauthor{Brahme et al.}
+\affil[1]{\protect\raggedright 
+University of California Santa Barbara, Probability and Statistics, e-mail: abhijitbrahme@ucsb.edu}
+\affil[2]{\protect\raggedright 
+ e-mail: ishanumehta13@gmail.com}
+	
+%\communicated{...}
+%\dedication{...}
+	
+\abstract{The evaluation of offensive linemen in American football has been considerably difficult prior to the existence of player tracking data. Using high-dimensional spatio-temporal data, we adapt the defensive-matchup hidden Markov model of \cite{franks2015characterizing} from basketball to football pass protection, producing soft, frame-by-frame probabilistic assignments of each pass blocker to the rushers he engages, which we validate against independently hand-charted data. Unlike the basketball setting --- where the matchup is merely a means to charging defensive skill --- blocking credit is shared and dynamic (double teams, pass-offs, and beaten or released blockers), so the probabilistic assignment becomes the instrument of evaluation itself. We use it to grade linemen and pass rushers: the attention a rusher commands, an adjusted plus-minus model that charges each blocker partial credit for suppressing rusher pressure (STRAIN), and survival metrics for block shedding and engagement. We further extend adjusted plus-minus, conventionally a discrete-stint method, to continuous time. Fit to the first eight weeks of the 2021 NFL season, the resulting metrics recover widely-recognized elite rushers and pass protectors and align with independent charting.}
+
+% Quang - abstract suggestion
+% \abstract{The evaluation of linemen in American football had been considerably difficult prior to the availability of player tracking data. With granular data, we make the following contributions in regards to modeling offensive linemen on passing plays. Based on previous work on defensive assignment in basketball (\cite{franks2015characterizing}), we consider a hidden Markov model to capture offensive linemen's pass blocking responsibility. This probabilistic approach effectively matches each pass blocker to different defensive pass rushers at every moment within a play. These probabilistic assignments combined with concepts from fluid dynamics allow us to develop metrics for evaluating offensive linemen performance. In particular, we measure the attention imparted by each pass blocker on each pass rusher based on physical attributes of the players. Finally, we employ a Bayesian hierarchical model to identify the top performing linemen in football.}
+% TODO: change ref to \citep{franks2015characterizing}
+
+\keywords{hidden Markov model, Kalman filter, Hierarchical modeling, National Football League, offensive linemen,  player tracking data}
+
+\maketitle
+	
+	
+\section{Introduction} \label{introduction}
+Sonny and Cher;  Romero and Juliet;  Sports and Statistics:  All-time classic duos.  In American football, there are specialized statistics for each player group.  Running backs and wide receivers are evaluated based on the yards that they gain and quarterbacks are evaluated based on statistics such as completion percentage, yards per attempt, and quarter back rating.  Defensive players are judged based on statistics such as sacks, pressures, tackles, and interceptions.  Even kickers and punters have performance based statistics such as field goal percentage and average hang time, for instance. However, offensive linemen, one of the most important and highest paid position groups, lack reliable metrics to grade their performance.  Often,  the offensive linemen are only noticed when their performance is negative (i.e., they allow a sack), and these events are quite rare so counting statistics rarely provide low variance estimates of ability. However, thanks to the NFL's Big Data Bowl \cite{nfl2023big}, the release of granular player trajectory data has facilitated the evaluation of offensive linemen.  
+
+On passing plays, the role of the defensive line (and other players who are ``rushers'' on a particular play) is ultimately to get to the quarterback as quickly as possible with the ideal outcome from a defensive rusher's perspective being a sack (i.e., tackling the quarterback for a loss before they are able to throw the ball).  Other good outcomes for the defense in terms of a rush that don't result in a sack would be a play where the quarterback must release the ball before they intended to in order to avoid a sack.  On the other side of the ball, the goal of the offensive lineman is to block the defensive rushers to allow their quarterback time to throw the ball unimpeded by a defensive rushers.  
+
+In this manuscript, we develop a Hidden Markov Model (HMM) inspired by the methods proposed in \cite{franks2015characterizing} specifically designed for the football domain to match offensive linemen to defensive rushers. We show that not only does this method allow for the development of novel informative metrics, but also enables building more accurate models. While our approach in this manuscript is based on \cite{nguyen2023here} work on STRAIN, our framework is compatible with other similar measurements or observed outcomes.
+
+
+
+\subsection{Previous Work}
+Previous efforts on quantifying performance of offensive linemen is meager, but there exists several metrics related to this purpose. Most of these measures, however, only consider the offensive line as a unit rather than assessing individual players.  For instance, Football Outsiders measures the ability of pass blockers with adjusted sack rate \citep{fo2023glossary}. Other Football Outsiders statistics for evaluating offensive linemen are related to run blocking, as opposed to pass blocking, which is of our primary interest.
+
+\cite{Burke2018Created} proposes pass block win rate (PBWR), which measures the proportion of time that a pass blocker is able to hold their block for at least 2.5 seconds.  Unlike adjusted sack rate, this measure evaluates individual linemen rather than the entire offensive line as a unit. However, this method may not account for the ability of the rusher, or changing blocking assignments over the course of the play. For example, a blocker may stunt, or pass off a rusher to a teammate, disrupting the metric by incorrectly distributing credit amongst the blockers responsible for the block.  
+
+\cite{AlamarGould2008} and \cite{AlamarGoldner2011} both study the performance of offensive linemen, with data being hand-collected by watching and charting whether a blocker held their block long enough for the QB to throw the football. The former article uses a three-game sample of data from the 2007 season to establish a relationship between the amount of time a lineman can hold a block and pass completion. The latter looks at passing plays in the 2010 season and estimates the number of yards each lineman contributes on offense.
+Ultimately, \cite{AlamarGould2008} note the ``absence of publicly available data that is needed in order to track the performance of a specific lineman'', leading to the lack of research on this topic. 
+Fortunately, with publicly-available player tracking data, it is now possible to evaluate and better understand the offensive line positions in football at a fine-grained level.
+
+
+\subsection{Our Contribution}
+Our starting point is the matchup HMM of \cite{franks2015characterizing}, but both our \emph{purpose} and our \emph{use} of the recovered assignments differ. In basketball, the HMM is a means to an end: it infers which defender is guarding which offensive player so that defensive skill can be charged against the shots and points a defender concedes. There, the matchup is incidental infrastructure --- every defender is, at each moment, guarding \emph{someone}, and that someone is relatively stable across a possession. Pass protection violates all three of these premises, which is precisely what makes the probabilistic assignment the \emph{centerpiece} of evaluation rather than scaffolding. First, blocking credit is genuinely \emph{shared and exchanged} --- double and combination blocks, and the pass-offs that resolve stunts and twists --- so the single binary tag of ``who blocked whom'' that PFF charts by hand cannot represent it, whereas soft assignments can. Second, a blocker can be \emph{beaten}, or \emph{release} with no one to block, states that have no defensive-matchup analogue. Third, the evaluation target --- the offensive line --- is the position group that, as noted above, has historically lacked reliable individual metrics, so the soft assignment is not a stepping stone but the measurement instrument itself. We adapt the HMM to this setting with a rusher--quarterback positional emission, a von Mises orientation emission (blockers face their rusher), position-specific parameters and a position-specific pre-snap matchup prior, hierarchical per-player stickiness, and a disengaged state with an asymmetric block-failure hazard.
+
+From these assignments we build a layered evaluation of offensive linemen. The assignment probabilities let us (i) measure the \emph{attention} (effective number of blockers) a rusher commands; (ii) assign \emph{partial, continuous credit} for pressure suppression in an adjusted plus-minus model, in which a blocker's effect counters the STRAIN of the rushers he engages \emph{in proportion to his assignment} rather than receiving all-or-nothing credit from a hand tag; and (iii) read block \emph{shedding} and \emph{disengagement} directly off the assignment dynamics --- how long a blocker sustains his man and how quickly a rusher defeats him. Because the assignments are partial and dynamic, they distribute credit across double teams and capture the moment assignments shift, neither of which a play-level binary tag can do.
+
+Finally, we extend adjusted plus-minus --- conventionally a discrete-stint method --- to \emph{continuous time}, which is especially natural for evaluating linemen, whose value lies in \emph{sustaining} a block as the play develops. The continuous-time model attributes suppression at the frame where the pressure is actually being mitigated rather than to a single play-level summary, uses the entire pressure trajectory rather than only its peak, and renders block failure as a time-to-event. A static matchup model, or a play-level aggregate, cannot express when a block breaks or how long the pocket is held --- the very quantities that distinguish good pass protection. To our knowledge this is the first application of adjusted plus-minus to continuous-time tracking data.
+
+% don't think we need the citation here;
+% multilevel model is widely used in sports
+
+
+% I rewrote this to make it different from strain paper
+
+The paper continues with a description of the player tracking data in Section \ref{data}.
+We then provide a methodological overview of our modeling approach in Section \ref{methods}.
+Next, we present the main results and analysis in Section \ref{results}.
+Finally, we recap the paper and discuss potential future work in Section \ref{discussion}.
+
+
+\section{Data} \label{data}
+
+We use the player tracking data provided by the 2023 NFL Big Data Bowl  \citep{howard2023nfl} in the analysis that follows.
+This is tracked by the NFL's Next Gen Stats system \citep{nfl2023ngs}, which returns the spatial coordinates of all players on the field and the football at a frequency of 10 Hz (i.e., 10 frames per second).
+Moreover, we have information about a player's movement (e.g., speed, acceleration, etc.) and the event annotation (e.g., ball snap, quarterback sack, etc.) with respect to each time frame within a play.
+In total, we have data for the first eight weeks of the 2021 NFL regular season.
+In order to assess offensive lineman and pass rushers, we limit our analysis to the individuals tagged by Pro Football Focus (an independent NFL contractor providing additional data augmentation that relies on domain knowledge annotators) with a ``Pass Block'' or ``Pass Rush'' role. Furthermore, we focus on the time-frames between the snap and the quarterback decision (pass attempt or run attempt), again using the annotated event annotation to filter our data. 
+
+
+\section{Methods} \label{methods}
+\cite{franks2015characterizing} used NBA tracking data to develop novel defensive metrics for evaluating basketball players.   In their development of these metrics, it is necessary to answer the question of which player was guarding another player.  Essentially, they must ``match'' a defender to an offensive player as a first step to analyze the defense of an individual player, which they achieve this matching via a Hidden Markov Model (HMM).  
+
+Our problem here is nearly identical.  In order to evaluate the performance of an offensive lineman, they must be ``matched'' to a pass rusher.  The matching method we present here borrows heavily from the formulation of \cite{franks2015characterizing} with minor modifications to account for the differences between football and basketball.  Full details regarding parameter estimation can be found in \cite{franks2015characterizing}. We fit the model to passing play data from the first week of the 2022 NFL season. 
+
+\subsection{Smoothing Positional Data}
+Before beginning our analysis using raw (x,y) tracking data, we smooth the observations. It is known that RFID sensors are noisy, and thus analysis of raw values are subject to error. More importantly, since our analysis heavily utilizes numerical differentiation techniques which rely on smooth function assumptions, de-noising the presented data is of significant importance.  In order to achieve this, we apply a Kalman Filter to the positional data, incorporating the observed velocity and acceleration data in the following manner.
+
+Noting that movement in the x and y direction can be calculated independently, we present the method for the x direction of motion and note that the same method follows for the y component.
+
+\subsubsection{Kalman Filter Implementation}
+A Kalman Filter is a specific instance of general state space models where both the emission and latent state distributions are assumed to be normally distributed. The general formulation is as follows:
+$$  y_t \sim \mathcal{N}(F \theta_t, V) $$
+$$  \theta_t \sim \mathcal{N}(G \theta_{t-1}, W) $$
+$$  x_0 \sim \mathcal{N}(m_0, C_0)$$
+Note that $F$ and $G$ are known matrices, and $V$ and $W$ represent the error associated with the observation vector $y_t$ and the latent state $\theta_t$ respectively. Similarly, $m_0$ and $C_0$ are initial parameters defining the distribution of the initial latent state $x_0$. 
+
+In our case, our observations are the position, velocity, and acceleration at time $t$ respectively. Hence,
+$$ y_t = \begin{bmatrix}
+  x_t \\
+  \dot{x_t} \\
+  \ddot{x_t} \\
+\end{bmatrix}  = \begin{bmatrix}
+  x_t \\
+   cos(\eta_t)*||v_t||\\
+  cos(\eta_t)*||a_t|| \\
+\end{bmatrix}$$
+since we are given only the magnitude of acceleration $ ||a_t|| $ and velocity $ ||v_t|| $ at each time point, as well as the direction of motion $\eta_t$.
+If we allow our latent state $\theta_t$ to represent the "true" version of $y_t$, then 
+$$ \theta_t = \begin{bmatrix}
+  z_t \\
+  \dot{z_t} \\
+  \ddot{z_t} \\
+  \end{bmatrix} $$
+where $z_t$ represents the latent, "true" position. Consequently, $F = I_3$. 
+Drawing from Newton's laws of motion, we can then define our parameters.
+$$ z_t = z_{t-1} + \delta \dot{z}_{t-1} + \frac{1}{2}\delta^2 \ddot{z}^2_{t-1} + \frac{1}{6}\delta^3 j_t  $$
+$$ \dot{z}_{t} = \dot{z}_{t-1} + \ddot{z}_{t-1} \delta +\frac{1}{2}\delta^2 j_t $$
+$$ \ddot{z}_{t} = \ddot{z}_{t-1} + \delta j_t $$
+Here, $j_t$ represents the jerk applied at time $t$, and $\delta$ is our change in time; in the case of our data, $\delta = .1$. 
+Thus,
+$$ \theta_t = G \theta_{t-1} + Q*j_t$$
+$$ Q = \begin{bmatrix}
+  \frac{1}{6}\delta^3 \\
+  \frac{1}{2}\delta^2 \\
+  \delta \\
+  \end{bmatrix}$$
+$$ G = \begin{bmatrix}
+  1 & \delta & \frac{1}{2}\delta^2 \\
+  0 & 1 & \delta \\
+  0 & 0 & 1 \\
+  \end{bmatrix}$$
+In our case, $j_t$ is unknown and therefore, we make the assumption that
+$$ j_t \sim \mathcal{N}(0, \sigma^2_j)$$
+$$ W = QQ^T \sigma^2_j$$
+Finally, we make the simplifying assumption that the unknown errors associated in the x-direction with the observed position, velocity, and accelerations are independent, but vary in magnitude. Thus,
+$$ V = \begin{bmatrix}
+  \sigma^2_{p} & 0 & 0 \\
+  0 & \sigma^2_{v} & 0 \\
+  0 & 0 & \sigma^2_{a} \\
+  \end{bmatrix}$$
+We assume that the errors observed in the x-direction are the same as the y-direction, and that $\sigma^{2}_p = \sigma^{2}_v = \sigma^{2}_a = \sigma^{2}_j =  1$. We note that these parameters could have been optimized using Expectation Maximization, but in our specific use case, optimization was deemed unnecessary as our pre-selected parameters offered sufficient smoothing.  We then apply the analytical update referenced in \cite{Kalman} and implemented in \cite{pykalman} to derive smoothed values of all trajectories in the dataset. Note that the smoothed values are subsequently used for all analysis referenced. 
+
+
+\subsection{Hidden Markov Model (HMM) for Pass Blocking}
+
+In order to determine responsibility of an offensive lineman for a specific rusher, one must determine at each time point, which offensive lineman is ``assigned'' to which rusher.  
+
+A similar ``matching'' problem is solved in \cite{franks2015characterizing}, where the authors seek to assign a defensive player to an offensive player at each time point of a professional basketball game, using a HMM.  We modify the approach to account for differences between American football and basketball.
+
+One such modification is the formulation of the conditional distribution of pass-blocker position, given blocking assignment $I_{tjk}$ where $I_{tjk}$ is an indicator variable equal to 1 if offensive player $k$ is matched to defensive player $j$ at time $t$. In \cite{franks2015characterizing}, the 2-D defender position, $\mu_{tk}$, at time $t$  when assigned to offender $k$ is modeled as a convex combination of ball location $B_t$, offensive player location $O_{tk}$, and basket location $H$. That is, they assume the defender position for defender $j$ at time $t$, $D_{tj}$, is normally distributed as $ D_{t} | I_{tjk} = 1 \sim \mathcal{N}(\mu_{tk}, \sigma^2_D)$ with $\mu_{tk} = \gamma_o O_{tk} + \gamma_b B_t + \gamma_h H$. 
+
+
+In football, it is intuited that the pass-blocker maintain their position such that they are between their pass-rusher assignment and their quarterback. Thus, we only consider the conditional distribution of the pass-blocker as a convex combination of the 2-D position of their blocking assignment $R_{tk}$ and the quarterback position $Q_t$,
+$$ \mu_{tk} = \gamma_r R_{tk} + \gamma_q Q_t $$. Furthermore, pass rushers and pass blockers usually operate in close quarters; this suggests that the variance $\sigma^2_D$ should not be too large. To account for this, we specify an Inverse Gamma prior on this variance such that 
+$$ \sigma^2_D \sim IG(\alpha, \beta)$$.
+$$ E[\sigma^2_D] = \frac{1}{4} $$
+This suggests that we wish the standard deviation from the expected position to be within half a yard in both directions. 
+
+
+
+Another modification involves incorporating another conditional emission distribution. The player tracking data makes available the orientation of  all players at time $t$. Thus, we can expect the direction orientation of blocker $j$ to be roughly opposite his assigned rusher $k$ at time $t$, as pass blockers typically face the pass rusher and attempt to stay square to the rusher during pass blocking events. Let $\eta_{tk}$ and $\eta_{tj}$ denote the orientations (in radians) of rusher $k$ and blocker $j$ at time $t$; the expectation that the blocker faces the rusher corresponds to $\eta_{tj} \approx \eta_{tk} + \pi$. Because orientation is a circular (angular) quantity, we model it directly with a von Mises distribution -- the circular analogue of the Gaussian -- rather than mapping the angle through its cosine onto a bounded interval and fitting a Beta. The von Mises avoids the boundary degeneracies of such a Beta parametrization (whose concentration diverges as a rusher's facing approaches an axis) and provides a single, interpretable concentration parameter. Given the assignment $I_{tjk}$, we therefore model the blocker orientation as
+
+$$ \eta_{tj} \,|\, I_{tjk} = 1 \sim \text{vonMises}(\eta_{tk} + \pi, \, \kappa), $$
+with density
+$$ p(\eta_{tj} \,|\, I_{tjk} = 1) = \frac{\exp\{\kappa \cos(\eta_{tj} - \eta_{tk} - \pi)\}}{2\pi I_0(\kappa)} = \frac{\exp\{-\kappa \cos(\eta_{tj} - \eta_{tk})\}}{2\pi I_0(\kappa)}, $$
+where $I_0$ is the modified Bessel function of the first kind of order zero. The mean direction $\eta_{tk} + \pi$ encodes the blocker facing opposite the rusher, so the density is maximized when $\eta_{tj} = \eta_{tk} + \pi$. The fixed concentration $\kappa > 0$ controls how strongly orientation informs the assignment; because the log-density varies as $-\kappa\cos(\eta_{tj} - \eta_{tk})$, its influence on the assignment is bounded and scales linearly in $\kappa$, so $\kappa$ can be chosen such that the orientation term refines rather than overwhelms the positional signal. We fix $\kappa = 1$. 
+
+Finally, football players block in close proximity, as opposed to basketball where a defender can be guarding an offender several feet away. Thus, we propose a third emission distribution with fixed $\sigma^2$
+
+$$ D_{t} | I_{tjk} = 1 \sim \mathcal{N}(O_{tk}, \sigma^2) $$.
+
+We make the the emission distributions position are considered independent, we can model the conditional emission density as the product of the individual densities. 
+
+Additionally, while basketball always has 5 defenders and offenders each on the court for each possession, football snaps may involve a different number of blockers and pass rushers from possession to possession. In \cite{franks2015characterizing}, the transition probability  $\rho$ for a defender to change assignments between time-steps is held constant:
+$$ P(I_{tjk} = 1 | I_{(t-1)jk} = 1) = \rho,$$
+$$ P(I_{tjk} = 1 | I_{(t-1)jk^{'}} = 1) = \frac{1 - \rho}{4},  \quad \text{ for } k \neq k^{'}$$
+Thus the resulting maximum likelihood estimate is 
+$$ \hat{\rho} =  \frac{\hat{Q}}{1 + \hat{Q}},$$
+where 
+$$ \hat{Q} = \frac{1}{4} \frac{\sum_{t,j,k} A_{tjkk} }{ \sum_{t,j,k} \sum_{k \neq k^{'}} A_{tjkk^{'}}  } .$$
+Modifying this for football, we introduce $j_p$ and $k_p$, the football analog for the number of blockers and rushers on a play $p$, and we can re-write the transition probability $\rho$ as follows:
+$$ P(I_{tj_{p}k_{p}} = 1 | I_{(t-1)j_{p}k_{p}} = 1) = \rho, $$
+$$ P(I_{tj_{p}k_{p}} = 1 | I_{(t-1)j_{p}k_{p}^{'}} = 1) = \frac{1 - \rho}{k_p -1},  \quad  \text{ for } k_p \neq k_{p}^{'}$$
+and the maximum likelihood estimate follows similarly.
+
+The transition above treats every blocker in a position group as equally likely to switch. In practice, stickiness varies by player: an elite tackle anchored on an edge rusher rarely switches, whereas an interior lineman routinely passes off twists and stunts. We therefore let each blocker $j_p$ carry his own stickiness $\rho_{j_p}$ --- replacing the shared $\rho$ in the transition probabilities above --- and place a common Beta prior over the player-level stickiness within each position group,
+$$ \rho_{j_p} \sim \text{Beta}(a, b). $$
+The hyperparameters $(a, b)$ are themselves estimated from the data (empirical Bayes), so that the player-level estimates are partially pooled: a blocker seen on many snaps is governed by his own transitions, while one seen rarely is shrunk toward the position-level mean $a/(a+b)$. This yields a regularized, model-based measure of how readily each individual blocker switches or passes off assignments --- a generative counterpart to the descriptive assignment entropy discussed above --- and feeds that player-specific stickiness back into the assignment posterior. The fitted Beta itself is informative: a tightly concentrated posterior (large $a+b$) indicates a position whose members switch at nearly identical rates, while a diffuse one reveals genuine within-position heterogeneity. Estimation of $\rho_{j_p}$ and $(a,b)$ within the EM algorithm is detailed in the appendix.
+
+The initial assignment distribution carries information that is available before the play develops: at the snap, a blocker's responsibility is largely dictated by the protection scheme and the defensive alignment. For instance, a left tackle is a-priori likely to be responsible for the edge rusher aligned to its side, modulated by down, distance, and formation. Rather than initializing the hidden Markov chain with a uniform distribution over rushers, we encode this pre-snap belief with a conditional-logit (multinomial-logistic) model. Let $X_{0j_pk_p}$ denote a vector of pre-snap covariates for the (blocker $j_p$, rusher $k_p$) pair on play $p$ --- the relative alignment at the snap (lateral and longitudinal offset, whether the rusher is on the blocker's side and whether it is the outermost rusher on that side), the rusher's lined-up alignment, and interactions of these with down, distance, and formation. The initial distribution is then
+$$ P(I_{0 j_p k_p} = 1) = \frac{\exp\{\beta^\top X_{0 j_p k_p}\}}{\sum_{k_p^{'}} \exp\{\beta^\top X_{0 j_p k_p^{'}}\}}, $$
+with coefficients $\beta$ that are shared across plays but \emph{estimated separately for each blocking position} (G, T, C, TE, RB, WR, FB), so the pre-snap matchup prior is position-specific: a tackle, a guard, and a running back each carry their own learned mapping from pre-snap alignment to likely assignment, reflecting that a tackle is typically responsible for the edge while a back scans for the most dangerous unblocked rusher. The coefficients are fit within the EM algorithm (Appendix). Any covariate that is constant across the candidate rushers (such as down or distance alone) cancels in the normalization, so the play-level covariates enter only through their interactions with the pair-relational features. Because the initial distribution enters the chain only at the snap, its influence on the assignment posterior at later frames is propagated through the transition matrix and decays geometrically at rate $\lambda_2^{t}$, where $\lambda_2 = (\rho k_p - 1)/(k_p - 1)$ is the second eigenvalue of the transition matrix. The pre-snap belief therefore dominates the assignment early in the play --- before the rushers have committed --- and is washed out by the tracking-based emissions as the play develops, matching the intuition that scheme determines the initial matchup while the realized rush determines the rest.
+
+The transition and emissions above force every blocker onto \emph{some} rusher at every frame, even when he is engaging no one --- a back releasing into a route, an uncovered lineman on a three-man rush, or a blocker who has simply been beaten. To represent this we append a $(k_p + 1)$-th \emph{disengaged}, or null, hidden state to each blocker's chain. Because the null state corresponds to no rusher, it cannot use the rusher--quarterback positional emission; we instead give it a flat background log-density $c_b$ together with a uniform orientation (von Mises with $\kappa = 0$, i.e.\ density $1/2\pi$), so the null state wins a frame precisely when no rusher's position-and-orientation density clears the background. Its transitions are deliberately asymmetric: from an engaged rusher the blocker disengages to the null state with a \emph{block-failure hazard} $p_{\text{fail}}$ that is distinct from the rate of switching to a different rusher, and once in the null state he remains there with a near-absorbing persistence $\rho_{\text{null}}$ --- a beaten or released blocker rarely re-engages within the same dropback. As with $\rho_{j_p}$, the hazard $p_{\text{fail}}$ is estimated per blocker (jointly with the stay/switch split via a Dirichlet--multinomial empirical-Bayes prior over the three engaged-state outcomes), $\rho_{\text{null}}$ is pooled per position, and the background level $c_b$ is fixed by a calibration sweep; details are in the appendix.
+
+The disengaged state has two payoffs. First, it \emph{de-biases attention}: probability mass that previously had to be spread over rushers a blocker was not actually engaging now flows to the null state, so the attention sums and the plus-minus countering term reflect genuine engagement (Section~\ref{robustness}). Second, the engaged-to-null transition is itself an observable \emph{disengagement event}; we use it in Section~\ref{shedding} to measure how long blockers sustain their blocks and how quickly rushers defeat them.
+
+Finally, while \cite{franks2015characterizing} treat every position identically and estimate parameters of their HMM accordingly, we elect to estimate separate parameters for every blocking group (G, T, C, TE, RB, WR, FB) independently as the blocking strategies vary by position.
+
+A full treatment of algorithm details are given in the appendix. 
+\subsection{Attention}
+We define attention as the sum of the assignment probabilities assigned to a rusher at a given time-step; on aggregate it can be thought of as the number of ``effective'' blockers a rusher experiences on a certain timescale. Because the number of effective blockers depends partly on the blocking scheme a defense faces --- a rusher who mainly sees four-man fronts draws from a different pool than one who mainly sees five-man fronts --- we normalize each rusher's attention within every play-frame relative to the average rusher on the field, so that the resulting figures are comparable across three-, four-, and five-man fronts. Tables \ref{tab:att_top_norm} and \ref{tab:att_bot_norm} report the rushers who draw the most and least front-normalized attention by position, which highlights which players are most influential in collapsing or imbalancing the offensive line.
+
+\input{../tables/attention_rankings.tex}
+
+Furthermore, attention curves (\ref{fig:attention_curve}) and their derivatives can be utilized to gain a more holistic understanding of how a rusher influences their offensive counterparts.
+
+Just as attention summarizes the load a rusher draws, the assignment probabilities also characterize how a blocker distributes their responsibility. A blocker who stays locked onto a single rusher concentrates all of their assignment mass on one hidden state, whereas a blocker who passes off rushers, picks up stunts, or works in combination blocks spreads that mass across several. We quantify this with the entropy of a blocker's marginal assignment distribution over the rushers on a play, normalized by $\log$ of the number of rushers in the front so that it lies in $[0,1]$ and is comparable across fronts of different sizes. Table \ref{tab:blocker_entropy} ranks blockers by this front-normalized assignment entropy. The stickiest blockers (lowest entropy) are exclusively offensive tackles, who tend to man up on a single edge rusher, while the most variable (highest entropy) are interior linemen and fullbacks, consistent with their role in passing off twists, stunts, and looping rushers.
+
+\input{../tables/blocker_entropy.tex}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.5\textwidth]{attention_curve.png} % Replace with your image file name
+\caption{Attention received over time from a play between the Cleveland Browns and Los Angeles Chargers}
+\label{fig:attention_curve}
+\end{figure}
+
+
+\subsection{HMM Model Applications}
+In order to illustrate the benefit of determining offensive linemen responsibility on the frame level, we show how probabilistic assignments can extend current Adjusted Plus Minus \cite{Macdonald+2012} models, by utilizing soft-assignments. Finally, we marry the continuous time-scale assignments with the  player tracking data to show a proof of concept for modeling offensive lineman contribution on a more granular scale. 
+
+\subsubsection{A Recap of STRAIN}
+
+%strain
+% the common symbol for strain in materials science is actually \epsilon
+%\begin{equation}
+%\epsilon_t= \frac{\ell_t-\ell_{0}}{\ell_{0}}.
+%\end{equation}
+
+%\epsilon'_t = \frac{v_t}{\ell_{0}},
+%strain rate
+%\begin{equation}
+%r_t = \frac{v_t}{\ell_{0}},
+%\end{equation}
+
+STRAIN \citep{nguyen2023here} is a pass rush metric that is closely related to the concepts of strain and strain rate in materials science \citep{callister2018materials}.
+This gives an approximate measure of pressure for every pass rusher at each moment within a play.
+Mathematically, \cite{nguyen2023here} define
+\begin{equation}
+\text{STRAIN}_{ijt} = - \frac{v_{ijt}}{d_{ijt}},
+\end{equation}
+in which $v_{ijt}$ is estimated by the forward difference method for calculating first derivatives. In order to recover a more numerically stable derivative, we utilize the central difference method with second order accuracy instead. Consequently, we approximate $a_{ijt}  = \frac{\delta v_{ijt}}{\delta t}$ using the central difference method for second derivatives with second order accuracy. 
+
+
+% \subsubsection{Improving Existing Regression}
+% The model presented below, aims to model the average strain generated by a rusher on a given play. This model is quite similar to the model presented in \cite{nguyen2023here}, except we replace the  number of blockers on the play with the total average attention ($\theta(b, j, i)$) given to rusher $j$. This replaces the number of blockers with the number of ``effective'' blockers the rusher experiences. 
+% $$ strain_{ij} \sim \mathcal{N}(R_{ji} + B _{bji} + \sum_{b \in \mathcal{X}_i}\theta(b, j, i) + O_{oi} + D_{di} + x_{ij} \beta, \sigma^2) $$
+% $$ R_j \sim \mathcal{N}(0, \sigma^2_R) $$
+% $$ B_b \sim \mathcal{N}(0, \sigma^2_B) $$
+% $$ O_o \sim \mathcal{N}(0, \sigma^2_O) $$
+% $$ D_d \sim \mathcal{N}(0, \sigma^2_D) $$
+% We use random intercepts for the two player groups: pass rushers as R and nearest pass blockers as B, as well as for the two team groups: defense D and offense O.
+% We estimate effects, $\beta$, for covariates pertaining to the rusher $j$ in play $i$, $x_{ij}$. We fit the model in PyMC \cite{pymc} using MCMC with 4 chains and 2000 samples total, with 1000 warmup iterations. Note that the variance parameters as well as $\beta$ are given flat priors.
+
+% Full parameter descriptions are given in the appendix. 
+
+\subsubsection{Extending Plus Minus Models}
+The model presented below aims to explain the \emph{peak} pressure a pass rush generates on a play. For each rusher $j$ on play $i$ we take $y_{ij} = \max_t \text{STRAIN}_{ijt}$, the maximum strain that rusher exerts over the frames of the play, and the play's overall pressure is the maximum over its rushers, $\max_j y_{ij}$ (we report this maximum rather than treating it as the regression target, so that every rusher contributes an observation and no conditioning on the peak rusher is required). We model a rusher's peak strain as that rusher's effect $R_j$, \emph{countered} by the contribution of the blockers $B_b$ assigned to it, weighted by the average attention $\theta(b,j,i)$ that blocker $b$ devotes to rusher $j$ on play $i$. Because of this formulation we capture the partial contributions of all blockers on a play, and a more effective blocker (larger $B_b$) reduces the strain its rusher can generate.
+$$ y_{ij} \sim \mathcal{N}\Big( \mu + R_{j} - \!\!\sum_{b \in \mathcal{X}_i}\!\! B_{b}\,\theta(b, j, i) + Q_{q_i} + O_{o_i} + D_{d_i} + \mathrm{Dn}_{i} + \mathrm{Qt}_{i} + \mathrm{OF}_{i} + \mathrm{DC}_{i} + \gamma^\top s_i , \; \sigma^2 \Big) $$
+where $\mathrm{Dn}_i, \mathrm{Qt}_i, \mathrm{OF}_i, \mathrm{DC}_i$ are random intercepts for the down, quarter, offensive formation, and defensive coverage type of play $i$, $Q_{q_i}, O_{o_i}, D_{d_i}$ are random intercepts for the quarterback, offensive team, and defensive team, and $s_i$ collects three standardized continuous covariates --- score differential (offense minus defense), game time remaining, and field position (yard line) --- with linear coefficients $\gamma$.
+
+Unlike \cite{franks2015characterizing} we do not center the player effects at zero. The rusher, blocker, and quarterback effects are drawn around a linear function of player attributes $z = [\text{position}, \text{height}, \text{weight}]$ in a non-centered parameterization, which shrinks each player toward their positional/size archetype, while the team and game-situation intercepts are zero-centered:
+$$ R_j = \alpha_R^\top z_j + \sigma_R\,\varepsilon^R_j, \quad B_b = \alpha_B^\top z_b + \sigma_B\,\varepsilon^B_b, \quad Q_q = \alpha_Q^\top z_q + \sigma_Q\,\varepsilon^Q_q, $$
+$$ O_o = \sigma_O\,\varepsilon^O_o,\quad D_d = \sigma_D\,\varepsilon^D_d,\quad \mathrm{Dn}_i = \sigma_{\mathrm{Dn}}\,\varepsilon^{\mathrm{Dn}}_{\mathrm{dn}(i)}, \quad\text{and likewise } \mathrm{Qt},\,\mathrm{OF},\,\mathrm{DC}, \qquad \varepsilon \sim \mathcal{N}(0,1). $$
+The intercept $\mu$, the attribute-coefficient vectors $\alpha_R, \alpha_B, \alpha_Q$, and the situation slopes $\gamma$ are given $\mathcal{N}(0,1)$ priors, and every scale parameter --- the residual $\sigma$ together with $\sigma_R, \sigma_B, \sigma_Q, \sigma_O, \sigma_D$ and the four situation scales $\sigma_{\mathrm{Dn}}, \sigma_{\mathrm{Qt}}, \sigma_{\mathrm{OF}}, \sigma_{\mathrm{DC}}$ --- is given an $\text{Inverse-Gamma}(2,1)$ prior. We draw from the posterior with the No-U-Turn sampler in NumPyro (a single chain of $1{,}000$ warmup and $2{,}000$ retained iterations at target acceptance $0.9$, which yielded only a handful of divergent transitions); a mean-field stochastic variational approximation (an \texttt{AutoNormal} guide trained with Adam) is available as a faster alternative. All continuous covariates are standardized.
+\subsubsection{Continuous Time Plus Minus Models}
+
+We extend the plus-minus model to continuous time by resolving it to the (play $i$, rusher $j$, frame $t$) level and forecasting the \emph{next} frame's peak pressure. For each rusher-frame we take as the response the maximum strain across all rushers at the following frame, $y_{ijt} = \max_{j'} \text{STRAIN}_{i,j',t+1}$, so that every rusher contributes an observation toward predicting the play's peak pressure one step ahead. This novel approach is, to our knowledge, the first public application of adjusted plus-minus methodology to continuous-time data.
+$$ y_{ijt} \sim \mathcal{N}\Big( \mu + \rho\,\text{STRAIN}_{ijt} + R_{j} - \!\!\sum_{b \in \mathcal{X}_i}\!\! B_{b}\,\theta(b, j, t, i) + Q_{q_i} + O_{o_i} + D_{d_i} + \mathrm{Dn}_{i} + \mathrm{Qt}_{i} + \mathrm{OF}_{i} + \mathrm{DC}_{i} + \gamma^\top s_i , \; \sigma^2 \Big) $$
+The predictor centers on the rusher's \emph{own} current-frame strain $\text{STRAIN}_{ijt}$ through a single autoregressive coefficient $\rho$, which we treat as a stationary correlation shared across all plays, frames, and rushers and give a $\text{Uniform}(-1,1)$ prior. As in the play-level model, the rusher's effect $R_j$ is countered by the frame-level attention-weighted contribution of its assigned blockers, where $\theta(b, j, t, i)$ is the probability that blocker $b$ is assigned to rusher $j$ at frame $t$. Every other term --- the attribute-centered rusher, blocker, and quarterback effects, the team and game-situation random intercepts ($\mathrm{Dn}, \mathrm{Qt}, \mathrm{OF}, \mathrm{DC}, O, D$), and the standardized continuous slopes $\gamma$ --- carries exactly the priors of the play-level model ($\mathcal{N}(0,1)$ on $\mu$, the attribute weights, and $\gamma$; $\text{Inverse-Gamma}(2,1)$ on every scale; non-centered, attribute-centered effects). Because $\rho$ captures the strong frame-to-frame persistence of the strain, the player and blocking effects describe the \emph{deviations} from that persistence --- how, conditional on the current pressure, a rusher and its blockers shift the next instant's peak. We fit the model with the same No-U-Turn sampler (a single chain, $1{,}000$ warmup and $2{,}000$ draws); at the frame-level scale ($\sim\!1.1$M rusher-frames) sampling is computationally intensive but feasible, and the mean-field stochastic variational approximation is available as a faster alternative.
+
+
+
+\section{Results}
+\subsection{Hidden Markov Model}
+\begin{table}[ht]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+$\gamma_r$ & $\gamma_q$ & $\sigma^2_{D}$ & $\rho$ & Position \\
+\hline
+0.48 & 0.52  & 2.03 & 0.64 & Tackle \\
+0.57 & 0.43 & 1.32 & 0.67 & Center \\
+0.53 & 0.47 & 1.56 & 0.69 & Guard \\
+0.15 & 0.85 & 1.60 & 0.85 & Running Back \\
+0.68 & 0.32 & 2.95 & 0.54 & Wide Receiver \\
+0.44 & 0.56 & 2.87 & 0.65 & Tight End \\
+0.60 & 0.40 & 6.29 & 0.77 & Fullback \\
+% Add more rows as needed
+\hline
+\end{tabular}
+\caption{Parameter estimates for HMM by position}
+\label{tab:hmm_estimate}
+\end{table}
+
+Recall that $\rho$ indicates how likely it is for a blocker to switch assignments between time-steps. We see that running backs are the least likely to switch off their assignments; this makes sense intuitively, as they are usually the last line of defense against incoming rushers. 
+Furthermore, note that parameters $\gamma_r$ and $\gamma_q$ indicate where, along the line between rusher and quarterback, blockers are likely to be positioned. Note that running backs are most likely to be 85\% of the way to the quarterback. This is in line with common football play design, as running backs are positioned closest to the quarterback.
+Additionally, observe that $\sigma^2_{D}$ indicates the variation in the positioning of the blocker. We note that fullbacks have the highest variation, which again is in line with football domain knowledge. Fullbacks generally pick up unblocked rushers, which may come through any part of the line; thus, their positioning is most likely to be variable. 
+Our parameter estimates seem to match closely with domain intuition and expertise, suggesting that our model is performing adequately. 
+
+% \subsection{Improving Existing Regression}
+% show how the model improved + verified usefulness of assignments
+
+
+\subsection{Extending Plus Minus Model}
+We fit the play-level model on all eight weeks of data (8{,}531 plays, 36{,}259 rusher observations) with the No-U-Turn sampler. The headline tables use the final assignments (per-player stickiness and the structured disengaged-state de-biasing developed below); Section~\ref{robustness} shows the rankings are stable across all of the assignment refinements. To report stable, interpretable rankings we restrict attention to players with at least 50 pass snaps over the sample, which removes the rare blitzers (e.g. defensive backs who rush on a handful of plays) whose effects are dominated by the attribute prior and carry very wide posterior intervals.
+
+Tables \ref{tab:rusher_pm_top} and \ref{tab:rusher_pm_bot} rank pass rushers by their estimated effect on peak strain (higher indicates more pressure generated), within position group. The top of each group is populated by widely-recognized elite rushers --- Myles Garrett among edge defenders, Aaron Donald and Jonathan Allen among interior linemen, and Vita Vea among nose tackles --- which lends face validity to the estimates. Because the blocker term is subtracted, the blocker coefficients in Tables \ref{tab:blocker_pm_top} and \ref{tab:blocker_pm_bot} are oriented so that a higher value corresponds to better pressure suppression. These are the raw per-attention coefficients $B_b$; we convert them to a usage-aware blocker value below.
+
+\input{../tables/rusher_plusminus.tex}
+\input{../tables/blocker_plusminus.tex}
+
+The coefficient $B_b$ is the suppression a blocker delivers \emph{per unit} of attention he devotes to a rusher, so it is not by itself a fair cross-player ranking. The model deliberately keeps the \emph{total} impedance on a rusher as the sum $\sum_b \theta(b,j) B_b$ --- two blockers double-teaming a rusher genuinely suppress him more than one --- but a blocker accrues attention only while engaged, and how much engagement he sees depends on his role and the fronts he faces (a release-heavy fullback, or a back who chips and leaks into a route, engages on only a fraction of snaps). To represent a blocker's realized value we therefore report his \emph{realized impedance}: the strain he actually removes per snap, $\overline{B_b \sum_j \theta(b,j)}$ --- the coefficient weighted by his observed engagement --- normalized within each play relative to the other blockers on the field, so it is comparable across three-, four-, and five-man fronts (Table~\ref{tab:blocker_value}). This sharpens the ranking toward consensus elite protectors (Tristan Wirfs and Andrew Thomas at tackle, Quenton Nelson at guard, Rodney Hudson and Alex Mack at center) and, crucially, demotes high-coefficient players who rarely pass-block: the fullback Patrick Ricard carries one of the largest raw coefficients yet engages on under $2\%$ of pass snaps, so his realized impedance is essentially zero.
+
+\input{../tables/blocker_value.tex}
+
+Because the quarterback intercept $Q_{q_i}$ also enters the peak-strain predictor additively, the model yields a by-product ranking of quarterbacks by how much pressure their dropbacks tend to attract. Reporting this as a suppression score (the negation of the quarterback effect, so that a higher value means less peak pressure allowed), Table \ref{tab:qb_suppression} lists the most and least strain-suppressing passers. Those who suppress the most pressure --- Kyler Murray, Matthew Stafford, and Jared Goff among them --- are known for mobility and a quick release, whereas those who allow the most --- Zach Wilson, Davis Mills, and Jameis Winston --- were among the most-pressured quarterbacks of the 2021 season. We note that this score reflects pressure proximity (strain) rather than sacks, so a scrambler such as Lamar Jackson can rate as allowing pressure even while avoiding sacks.
+
+\input{../tables/qb_suppression.tex}
+
+\subsection{Robustness to assignment refinements} \label{robustness}
+The plus-minus effects depend on the blocking assignments $\theta$ that weight the countering term, and we refined those assignments in three steps: per-player stickiness $\rho_j$ (Beta-Binomial; Section~\ref{methods}); a disengaged/null state that absorbs frames in which a blocker is not engaging any rusher; and a structured null transition with a distinct block-failure hazard $p_{\text{fail}}$ and a near-absorbing null persistence $\rho_{\text{null}}$. Re-fitting the play-level model on each version of the assignments lets us ask how much the rankings move. Table~\ref{tab:phase_comparison} and Figure~\ref{fig:phase_comparison} summarize the comparison.
+
+Two findings stand out. First, the rankings are \emph{stable}: the Spearman rank-correlation of the blocker, rusher, and quarterback effects against the raw-assignment fit never falls below $0.96$, and the residual scale $\sigma$ is essentially unchanged ($0.76$ throughout). Per-player stickiness alone reproduces the raw rankings almost exactly ($\rho_S = 1.00$), consistent with the small within-position heterogeneity in $\rho_j$. Second, introducing the null state \emph{sharpens} the blocker effects: removing disengaged probability mass (released backs, uncovered linemen, and beaten blockers) concentrates the countering credit on genuine engagement, raising the mean absolute blocker effect by roughly $20\%$ ($0.30 \to 0.36$) and the $95$th percentile from $0.41$ to $0.48$, while preserving who ranks where (Figure~\ref{fig:phase_comparison}, left: every blocker lies above the identity line yet the points hug a tight monotone band). The structured null (Phase 2.5) sharpens slightly more than the symmetric one and additionally yields the block-failure survival metrics discussed in the appendix. We caution that this magnitude growth is largely mechanical: de-biasing lowers the effective-blocker count $\sum_b \theta(b,j)$ on each rusher, so a coefficient on attention must rise to explain the same (unchanged) strain. A control fit that normalizes attention per rusher --- making the countering term the \emph{average} engaged blocker effect rather than the count-scaled sum --- exhibits no such growth: its mean absolute blocker effect is essentially flat from the raw to the de-biased assignments ($0.117 \to 0.115$, versus $0.299 \to 0.357$ for the unnormalized sum), confirming that the apparent sharpening is the effective-blocker-count rescaling rather than improved resolution. We retain the unnormalized sum because total impedance on a rusher is the quantity of interest, but for this reason we rank blockers by realized impedance (Table~\ref{tab:blocker_value}) rather than by the raw coefficient, and treat rank-stability, not coefficient magnitude, as the robust takeaway.
+
+\input{../tables/phase_comparison.tex}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\textwidth]{../figures/phase_comparison.png}
+\caption{Effect of the assignment refinements on the play-level blocker plus-minus. Left: blocker effects under the raw assignments vs.\ the final structured-null (de-biased) assignments --- the rank order is preserved (Spearman $0.97$) but every effect is sharpened (all points above the dashed identity line). Right: the mean and $95$th-percentile absolute blocker effect grow once the null state de-biases attention (Phase $2$ onward), while per-player stickiness alone (Phase $1$) leaves them unchanged.}
+\label{fig:phase_comparison}
+\end{figure}
+
+\subsection{Disengagement and block shedding} \label{shedding}
+The disengaged state turns block failure into an observable event, but raw entry into the null state conflates three very different situations: a blocker who has been \emph{beaten} (the rusher has crossed to the quarterback side of him), one who has \emph{won} so decisively that he has driven the rusher away from the pocket (so his position no longer sits between rusher and quarterback), and one who has simply \emph{released} with no rusher to engage. We separate these using geometry together with STRAIN: a frame counts as a \emph{beat} only when the blocker is in the null state, the assigned rusher is goal-side of him ($d(\text{rusher},\text{QB}) < d(\text{blocker},\text{QB})$), \emph{and} that rusher's STRAIN is rising; a drive-win instead has the rusher moving away with low or negative STRAIN; the remainder are releases.
+
+For each (play, blocker) we take the time from the snap to the first beat as a survival outcome, right-censored at the throw for the majority of blocks that are never beaten, and summarize it with the Kaplan--Meier restricted mean survival time (RMST) alongside the per-block beat rate. Table~\ref{tab:block_engagement} ranks tackles by engagement. Because most blocks survive to the throw, the RMST sits near the $\sim\!4$\,s play horizon for nearly everyone, so the beat rate is the more discriminating quantity: elite pass protectors such as Rashawn Slater, Andrew Thomas, Trent Williams, and Lane Johnson are beaten on only $3$--$6\%$ of their blocks. Since elite tackles also face the best rushers, we additionally report an opponent-adjusted residual that nets out the typical survival of the rushers each blocker faced. Conversely, Table~\ref{tab:rusher_shedding} ranks rushers by how quickly they beat their blocks (shortest survival): Dont'a Hightower, Jonathan Greenard, Nick Bosa, and A.J.\ Epenesa beat blocks both fastest and most often, consistent with their reputations as disruptive rushers.
+
+\input{../tables/block_engagement.tex}
+\input{../tables/rusher_shedding.tex}
+
+\subsection{External validation against PFF charting} \label{pffvalid}
+Our assignments and metrics are derived purely from tracking geometry and STRAIN, so the independently hand-charted pass-block / pass-rush data from Pro Football Focus provides an external check.
+
+First, the HMM assignments recover the charted blocker responsibilities. PFF tags, for each (play, blocker), the single rusher that blocker was responsible for. Over the $44{,}037$ charted blocker-plays we are able to match, our smoothed assignment places a mean of $0.77$ of its (engaged) probability mass on exactly that rusher --- against a chance baseline of $0.24$ (one over the average number of rushers) --- and the model's most-assigned rusher agrees with PFF's designation on $87.5\%$ of blocker-plays. The soft, dynamic assignments thus reproduce the hand-tagged matchups while additionally resolving the double-teams, pass-offs, and disengagements that a single static tag cannot express.
+
+Second, the value metrics correlate with charted pressure outcomes in the expected directions, though the strength of the agreement differs sharply between the two sides (Table~\ref{tab:pff_validation}). On the rush side it is strong: a rusher's estimated plus-minus effect on peak strain tracks his PFF pressure rate at Spearman $0.68$ ($p < 10^{-36}$; sacks $0.55$, hurries $0.50$), and the survival-based shed rate lines up as well ($+0.36$). This is what one would hope for --- rushers generate pressure on a sizeable share of snaps, and our STRAIN response is itself a direct measure of pressure proximity. On the block side the correlations are \emph{modest, but statistically significant and correctly signed}. Because better protection means \emph{less} pressure, the quality metrics necessarily correlate \emph{negatively} with pressures allowed --- realized impedance at $-0.23$ and engagement survival at $-0.33$ (both $p < 10^{-3}$) --- while the beat rate, a measure of failure, is positive ($+0.31$, $p < 10^{-5}$); so the negative entries are confirmations, not contradictions. The smaller magnitudes here are expected rather than alarming: a blocker is charted as allowing pressure on only a few percent of his snaps, so the per-player rate is intrinsically noisy and our process metrics (engagement, beats) proxy that rare outcome only indirectly. Consistent with this, restricting to blockers with at least $100$ snaps --- which reduces the sampling noise --- strengthens the correlations (e.g.\ engagement survival to $-0.32$ and beat rate to $+0.32$). In sum, the rush-side metrics validate strongly against independent charting and the block-side metrics validate directionally, an asymmetry that mirrors how frequently each event is actually observed.
+
+\input{../tables/pff_validation.tex}
+
+\subsection{Continuous Time Plus Minus Model}
+show results from this model
+
+
+
+
+\section{Discussion} \label{discussion}
+\subsection{Summary}
+We adapted the defensive-matchup hidden Markov model of \cite{franks2015characterizing} from basketball to football pass protection, where --- unlike the basketball setting --- the probabilistic assignment is not merely a route to a downstream metric but the evaluation instrument itself, because blocking credit is shared across double teams and exchanged through stunts, pass-offs, and outright beaten blocks. The recovered assignments reproduce independently hand-charted blocker responsibilities (an $87.5\%$ agreement with PFF's designated rusher) while additionally expressing the partial, dynamic credit a single binary tag cannot. Building on these soft assignments, we evaluated offensive linemen and pass rushers along several axes: the attention a rusher commands, an adjusted plus-minus model that charges each blocker partial credit for suppressing rusher STRAIN, a usage-aware realized-impedance ranking, and survival metrics for block shedding and engagement. The rusher effects from the plus-minus model correlate strongly with independent PFF pressure charting (Spearman $0.68$), and the top of every ranking is populated by widely-recognized elite players, supporting the validity of the approach. Finally, we extended adjusted plus-minus to continuous time, attributing pressure suppression at the instant it is mitigated and treating block failure as a time-to-event --- a framing well suited to a position whose value lies in sustaining blocks as a play develops.
+
+Beyond individual evaluation, the assignment probabilities reveal which rushers draw the most interference and how protection schemes resolve over the course of a play, information that can inform opponent scouting and the design of blocking schemes.
+
+
+
+\subsection{Critique and Future Work}
+Although our methods are promising, there is certainly room for improvement. 
+
+First, additional improvements could help improve the fidelity of the HMM assignments. For example, we only consider positioning as important to determine assignments. There are scenarios in which additional information such as blocker orientation and direction of velocity could be useful; consider the scenario in which a blocker is moving towards a rusher but positionally is closer to another rusher. An erroneous assignment could occur here, incorrectly attributing credit. Furthermore, we fail to differentiate between when a blocker is either impeding a rusher or simply positionally in the correct spot to be blocking a rusher. For example, in our current model, a blocker could be assigned to a rusher but not actively discouraging him from reaching the quarterback (i.e., a missed block). An extension can be made to incorporate a 2-layer HMM similar to \cite{twolayerhmm}, which would, conditional on the probability assignment, then determine the status of the blocking assignment.
+
+Additionally, we would like to explore the use of other acceleration metrics in order to rate the effectiveness of pass rushers and blockers alike. For example, one could imagine using acceleration in the direction of the quarterback's velocity instead of STRAIN; this would highlight a rusher's pursuit ability.
+
+\begin{appendices}
+\section*{HMM Parameter Estimation}
+\subsection{Model Formulation}
+We model the evolution of pass blocking assignments (as given by the matrix of
+matchups, $I_i$) over the course of a play $i$ using a hidden Markov model. The hidden states represent the rusher that is being blocked by each offensive lineman. The complete data likelihood over all plays is
+
+$$ L(\gamma_r, \gamma_q, \sigma^2_D) = P(\sigma^2_D) \prod_{i=1}^{N}P(\mathbf{D}_i, \mathbf{I}_i, \boldsymbol{\eta}_i | \gamma_r, \gamma_q, \sigma^2_D) $$
+Here, $\mathbf{I}$ is the matrix of pass blocking assignments, $\mathbf{D}$ is the position of the pass blocker, and $\boldsymbol{\eta}$ is the orientation of the pass blocker during a play. Note that $P(\sigma^2_D)$ is the prior on the variance.
+
+\[
+\resizebox{\textwidth}{!}{$\displaystyle = P(\sigma^2_D) \prod_{i=1}^{N} \prod_{t,j,k} [P(D_{tj} | I_{t_i j_i k_i}, \gamma_q, \gamma_r, \sigma^2_D) P(D_{t_ij_i} | I_{t_ij_ik_i}, R_{t_ik_i}, \sigma^2) P(\eta_{t_ij_i} | I_{t_ij_ik_i}, \eta_{t_ik_i}) P(I_{t_ij_ik_i}| I_{(t_i-1)j_i.})]^{I_{t_ij_ik_i}}$}
+\]
+Recall the following (removing the subscript $i$ for clarity)
+$$ \sigma^2_D = IG(\alpha, \beta)$$
+
+$$ D_{tj} | I_{tjk} = 1, \gamma_q, \gamma_r, \sigma^2_D \sim \mathcal{N}(\gamma_r R_{tk} + \gamma_q Q_t, \sigma^2_D)$$
+$$D_{tj} | I_{tjk} = 1, R_{tk}, \sigma^2 \sim \mathcal{N}(R_{tk}, \sigma^2) $$
+$$ \eta_{tj} | I_{tjk} = 1, \eta_{tk} \sim \text{vonMises}\big(\eta_{tk} + \pi, \, \kappa\big) $$
+where $\alpha$, $\beta$, $\sigma^2$ and $\kappa$ are fixed hyper-parameters.
+
+Furthermore, recall that we assume there is a constant probability $\rho$ that a player is equally likely to switch assignments at every instance.
+
+$$ P(I_{tjk}| I_{(t-1)jk}) = \rho$$
+$$ P(I_{tjk}| I_{(t-1)jk^{'}}) = \frac{ 1- \rho}{R_t - 1}$$
+where $R_t$ is the number of rushers (or hidden states) at time $t$. Note that $R_t$ is constant for a given play. 
+Thus, the full log likelihood is 
+$$ l(\gamma_r, \gamma_q, \sigma^2_D) = log(P(\mathbf{D}, \mathbf{I}, \boldsymbol{\eta} | \gamma_r, \gamma_q, \sigma^2_D)P(\sigma^2_D))$$
+
+$$ = log(P(\sigma^2_D)) + \sum_{i=1}^{N} \sum_{t_ij_ik_i} I_{t_ij_ik_i}[ log(P(D_{t_ij_i} | I_{t_ij_ik_i}, \gamma_q, \gamma_r, \sigma^2_D)) + log( P(D_{t_ij_i} | I_{t_ij_ik_i}, R_{t_ik_i}, \sigma^2)) $$
+$$ + log( P(\eta_{t_ij_i} | I_{t_ij_ik_i}, \eta_{t_ik_i})) + log( P(I_{t_ij_ik_i}| I_{(t_i-1)j_i.}))]$$
+$$ = C  - (\alpha +1)log(\sigma^2_D) - \frac{\beta}{\sigma^2_D} +  \sum_{i=1}^{N} \sum_{t_ij_ik_i} I_{t_ij_ik_i}[-\frac{(D_{t_ij_i} - \gamma_r R_{t_ik_i} - \gamma_q Q_{t_i})^2}{\sigma^2_D} -log(\sigma^2_D) + $$
+$$ \frac{-(D_{t_ij_i} - R_{t_ik_i})^2}{2\sigma^2} + 
+log( P(\eta_{t_ij_i} | I_{t_ij_ik_i}, \eta_{t_ik_i})) + log( P(I_{t_ij_ik_i}| I_{(t_i-1)j_i.}))] $$
+
+\subsection{Inference}
+Utilizing the Expectation Maximization (EM) algorithm, we are able to estimate the unknown $I_{t_ij_ik_i} \forall i = 1 \dots N$, $\sigma^2_D$, $\gamma_r$, $\gamma_q$ and $\rho$. At each iteration $s$ of the algorithm, we perform the E-step and M-step until convergence. For the E-step, we compute $E_{t_ij_i_k_i}^{(s)} = E[I^{(s)}_{t_ij_ik_i} | D_{t_ij_i}, \hat{\rho^{(s)}}, \hat{\sigma^{2(s)}_D}, \hat{\Gamma^{(s)}}] $ and $A_{t_ij_ik_ik_{i}^{'}} = E[I_{t_i j_i k_i} I_{(t_i-1) j_i k_i^{'} }| D_{t_ij_i}, \hat{\rho^{(s)}}, \hat{\sigma^{2(s)}_D}, \hat{\Gamma^{(s)}}]$ $\forall i = 1 \dots N$
+where $\Gamma = [\gamma_r, \gamma_q]$.
+Using the forward-backward algorithm, we can compute these expectations by each $j_i$ since we assume the pass blocking assignments are independent across blockers. 
+In the M-step, we update the maximum likelihood estimates of $\sigma^2_D$, $\Gamma$, and $\rho$ given the current expectations. 
+Letting $\mathbf{X} = [\mathbf{R}, \mathbf{Q}]$ be the design matrix corresponding to the rusher location and quarterback location. Then $X_{t_ik_i} = [R_{t_ik_i}, Q_{t_i}]$ be the design matrix corresponding to rusher $k$ during play $i$ at time $t_i$. 
+In the $s$th iteration of the M-step we first update estimates of $\Gamma$ and $\sigma^2_D$
+$$ (\hat{\Gamma^{(s)}}, \hat{\sigma^{2(s)}_D}) \xleftarrow{} \underset{\Gamma, \sigma^2_D}{\mathrm{argmax}} -(\alpha + 1) log(\sigma^2_D) - \frac{\beta}{\sigma^2_D} - \sum_{i=1}^{N} \sum_{t_i j_ik_i} E_{t_ij_i_k_i}^{(s)}[\frac{1}{\sigma^2_D}(D_{t_ij_i} - \Gamma X_{t_ik_i})^2 + log(\sigma^2_D)]$$
+The estimator of $\Gamma$ can be found in \cite{franks2015characterizing}. 
+Note that the estimated pass blocker variation at time step $s$, $\hat{\sigma}^2_D$ is
+$$ \hat{\sigma}^2_D = \frac{\beta + \sum_{i=1}^N(D_i - \hat{\Gamma}X_i)^{T}\mathcal{E}_i(D_i - \hat{\Gamma}X_i)}{\alpha + \sum_{i=1}^N N_{\mathcal{X}_i} + 1} $$
+where $N_{\mathcal{X}_i}$ is the number of rows of $X_i$ and $\mathcal{E}_i = diag(E_{t_ij_i_k_i}^{(s)}) $ .
+Next, we update our estimate of the transition parameter, $\rho$, in iteration $s$:
+$$ \hat{\rho}^{(s)} \xleftarrow{} \underset{\rho}{\mathrm{argmax}} \; \Big(\sum_{i=1}^{N} \sum_{t_i j_i k_i} A_{t_ij_ik_ik_i}\Big) log(\rho) + \Big(\sum_{i=1}^{N} \sum_{t_i j_i k_i} \sum_{k_i \neq k_i^{'}} A_{t_ij_ik_ik_i^{'}}\Big) log\Big(\frac{1-\rho}{R_i - 1}\Big) $$
+Since the $log(R_i - 1)$ term does not depend on $\rho$, the maximum likelihood estimate is the pooled fraction of retained assignments,
+$$ \hat{\rho}^{(s)} = \frac{S}{S + W} = \frac{\hat{Q}}{1 + \hat{Q}}, \qquad \hat{Q} = \frac{S}{W}, $$
+where $S = \sum_{i=1}^{N} \sum_{t_i j_i k_i} A_{t_ij_ik_ik_i}$ and $W = \sum_{i=1}^{N} \sum_{t_i j_i k_i} \sum_{k_i \neq k_i^{'}} A_{t_ij_ik_ik_i^{'}}$ are the total expected numbers of retained and switched assignments, respectively, and $R_i$ is the number of rushers in play $i$. Every frame-to-frame transition contributes equally to the estimate.
+
+\subsection{Hierarchical per-blocker stickiness}
+The pooled estimate above assigns one stickiness to an entire position group. We instead give each blocker $j$ his own $\rho_j$ with a shared conjugate prior $\rho_j \sim \text{Beta}(a, b)$, and aggregate the two-slice posteriors $A$ into \emph{per-blocker} expected transition counts (summing over the frames and plays in which blocker $j$ appears),
+$$ S_j = \sum_{i, t_i, k_i} A_{t_i j k_i k_i}, \qquad W_j = \sum_{i, t_i, k_i} \sum_{k_i \neq k_i^{'}} A_{t_i j k_i k_i^{'}}, $$
+the expected numbers of retained and switched transitions for blocker $j$. Conditional on $\rho_j$, each frame-to-frame transition is a Bernoulli ``stay versus switch'' trial, so the Beta prior is conjugate and the per-blocker M-step is \emph{closed form}: the posterior is $\rho_j \mid S_j, W_j \sim \text{Beta}(a + S_j,\, b + W_j)$, and we take its mean
+$$ \hat{\rho}_j = \frac{S_j + a}{S_j + W_j + a + b}. $$
+This is precisely a partial-pooling estimate --- a blocker with many transitions is dominated by his own counts $S_j, W_j$, while one with few is shrunk toward the prior mean $a/(a+b)$.
+
+The hyperparameters $(a,b)$ are estimated within the same M-step (empirical Bayes) by maximizing the marginal likelihood of the per-blocker counts with each $\rho_j$ integrated out, a product of Beta-Binomial terms,
+$$ (a, b) \xleftarrow{} \underset{a, b}{\mathrm{argmax}} \; \sum_{j} \log \frac{B(a + S_j,\; b + W_j)}{B(a, b)}, $$
+where $B(\cdot,\cdot)$ is the Beta function. Unlike the conjugate update for $\rho_j$, this marginal maximization has \emph{no} closed form: its stationarity conditions couple $a$, $b$, and $a+b$ through the digamma function $\psi$,
+$$ \sum_j \big[ \psi(a + S_j) - \psi(a) \big] = \sum_j \big[ \psi(a + b + S_j + W_j) - \psi(a+b) \big] $$
+(and symmetrically for $b$). We solve them with a few iterations of the multiplicative fixed-point update of \cite{minka2000estimating},
+$$ a \leftarrow a \cdot \frac{\sum_j \psi(S_j + a) - \psi(a)}{\sum_j \psi(S_j + W_j + a + b) - \psi(a + b)}, \qquad b \leftarrow b \cdot \frac{\sum_j \psi(W_j + b) - \psi(b)}{\sum_j \psi(S_j + W_j + a + b) - \psi(a + b)}, $$
+warm-started from the previous EM iterate. Each EM iteration thus (i) refits $(a,b)$ by this inner fixed point and (ii) updates every $\rho_j$ in closed form, after which the expected counts $S_j, W_j$ are recomputed at the next E-step. Because the counts are expected (hence fractional) quantities, the digamma-based update applies directly. The per-blocker transition $\rho_{j}$ replaces the shared $\rho$ when forming the transition matrix in both the E-step and assignment smoothing. Setting $a = b = \rho_0 c,\, (1-\rho_0) c$ to a fixed weakly informative prior (rather than estimating it) recovers an ordinary conjugate-Bayes update in which the per-blocker step alone --- with no inner fixed point --- is fully closed form.
+
+Finally, the conditional-logit coefficients $\beta$ of the initial distribution have no closed-form update. In the M-step we maximize the corresponding term of the expected complete-data log-likelihood,
+$$ Q(\beta) = \sum_{i=1}^{N} \sum_{j_i} \sum_{k_i} E_{0 j_i k_i}^{(s)} \; log\Big( \frac{\exp\{\beta^\top X_{0 j_i k_i}\}}{\sum_{k_i^{'}} \exp\{\beta^\top X_{0 j_i k_i^{'}}\}} \Big), $$
+where $E_{0 j_i k_i}^{(s)}$ are the snap-frame ($t=0$) responsibilities used as soft targets. This is a soft-label multinomial-logistic regression with gradient
+$$ \nabla_\beta Q = \sum_{i=1}^{N} \sum_{j_i} \sum_{k_i} \big( E_{0 j_i k_i}^{(s)} - P(I_{0 j_i k_i} = 1) \big) X_{0 j_i k_i}; $$
+we maximize it with a small number of Newton steps warm-started from the previous iterate, which preserves the monotonicity of the EM algorithm. The pre-snap features $X_{0 j_i k_i}$ are standardized and $\beta$ is shared across plays but estimated separately per blocking position.
+
+\subsection{Disengaged state and structured transition}
+The disengaged (null) state is appended as state $k_p + 1$ to each blocker's chain. It carries a position-independent emission --- a flat background log-density $c_b$ and a uniform orientation $p(\eta_{tj} \mid \text{null}) = 1/2\pi$ (von Mises with $\kappa = 0$) --- and a structured transition: from an engaged rusher the blocker stays with probability $\rho_j$, switches to one of the other rushers with total probability $1 - \rho_j - p_{\text{fail},j}$ (split evenly), and disengages to the null state with the block-failure hazard $p_{\text{fail},j}$; from the null state he persists with probability $\rho_{\text{null}}$ and re-engages a rusher with probability $1 - \rho_{\text{null}}$ (split evenly). The forward--backward two-slice posteriors then give directional expected counts per blocker --- $A_j$ (stay), $W_j$ (switch to another rusher), $F_j$ (engaged$\to$null) --- and null-row counts $N^{\text{stay}}, N^{\text{re}}$ pooled over the position. The engaged-row triple $(A_j, W_j, F_j)$ is multinomial, so we place a shared Dirichlet prior over its three outcomes and fit the concentration with the same multiplicative (Minka) fixed point used above, yielding closed-form posterior means $\hat{\rho}_j$ and $\hat{p}_{\text{fail},j}$; the null persistence is the pooled fraction $\hat{\rho}_{\text{null}} = N^{\text{stay}} / (N^{\text{stay}} + N^{\text{re}})$. The background $c_b$ is held fixed --- chosen by a one-week calibration sweep targeting a plausible league-wide disengagement rate --- so that it sets only the emission threshold for disengagement rather than competing with $p_{\text{fail}}$ for the same signal.
+
+We fit the parameters on all eight weeks of data.
+
+\end{appendices}
+
+
+%\textbf{Galley proofs}: Before your contribution is published, you will receive a proof of the article to proofread. At this point in the publication process, there must be no more changes made to the content: only minor corrections in form and phrasing are possible.	
+
+\begin{acknowledgement}
+  BDB for publicly-available data
+\end{acknowledgement}
+%\begin{funding}
+%Please insert information concerning research grant support here (institution and grant number). Please provide for each funder the funder’s DOI according to https://doi.crossref.org/funderNames?mode=list.
+%\end{funding}
+
+\bibliographystyle{chicago}
+\bibliography{refs.bib}
+
+
+\end{document}

@@ -47,15 +47,129 @@ def calculate_eta(
     """
 
     t, k = pdf.shape
-    partial_product = backward_result * pdf
-    partial_product /= partial_product.sum(axis=1, keepdims=True)
     eta = np.zeros((t - 1, k, k))
     for i in range(t - 1):
-        eta[i, :, :] = transition_matrix * np.outer(
-            partial_product[i + 1, :], forward_result[i, :]
+        ### joint pairwise posterior xi_t(a, b) = P(x_t = a, x_{t+1} = b | y),
+        ### proportional to alpha_t(a) * T(a -> b) * P(y_{t+1} | b) * beta_{t+1}(b).
+        ### normalize each slice by a SINGLE scalar (joint over both axes) so that
+        ### sum_b xi_t(a, b) == gamma_t(a); row-normalizing would instead give the
+        ### conditional transition prob and break the rho M-step expected counts.
+        num = transition_matrix * np.outer(
+            backward_result[i + 1, :] * pdf[i + 1, :],
+            forward_result[i, :],
         )
-        eta[i, :, :] /= eta[i, :, :].sum(axis=1, keepdims=True)
+        eta[i, :, :] = num / num.sum()
     return eta
+
+
+def compute_emission(
+    tau_hat: np.ndarray,
+    sigma_hat: float,
+    D: np.ndarray,
+    O: np.ndarray,
+    B: np.ndarray,
+) -> np.ndarray:
+    """unnormalized HMM emission densities for a single defender
+
+    The [t, m] entry is the density of the defender's observation at time t under
+    the hypothesis that it is guarding rusher m: an isotropic 2-D Gaussian on
+    position centered on the convex combination tau_o * rusher + tau_b * qb, times
+    (when rusher orientation is available, i.e. O has a 3rd column) a Beta density
+    on the blocker orientation.
+
+    Args:
+        tau_hat (np.ndarray): (2, 1) simplex vector (rusher weight, qb weight)
+        sigma_hat (float): position variance
+        D (np.ndarray): (t, >=2) one defender's positions (x, y[, dir])
+        O (np.ndarray): (t, k, >=2) rusher positions (x, y[, dir])
+        B (np.ndarray): (t, 2) quarterback positions (x, y)
+
+    Returns:
+        np.ndarray: (t, k) unnormalized emission densities
+    """
+    _, k, o_dim = O.shape
+    D_rep = np.repeat(D[:, np.newaxis, :], k, axis=-2)
+    B_rep = np.repeat(B[:, np.newaxis, :], k, axis=-2)
+
+    O_B_stacked = np.stack(
+        (O[:, :, 0:2], B_rep[:, :, 0:2]), axis=-1
+    )  ## (t, k, 2, 2): for each rusher, columns are [rusher_xy, qb_xy]
+    expected_centroid = np.squeeze(
+        np.matmul(O_B_stacked, tau_hat), axis=-1
+    )  ## (t, k, 2) convex combination of rusher and qb
+    pdf_location = norm(loc=expected_centroid, scale=np.sqrt(sigma_hat)).pdf(
+        D_rep[:, :, 0:2]
+    )
+    pdf_location = np.prod(
+        pdf_location, -1
+    )  ## x, y independent -> multiply their densities
+
+    if o_dim < 3:
+        ### no orientation channel (e.g. orientation term disabled in tests)
+        return pdf_location
+
+    rusher_orientation = np.cos(np.deg2rad(O[:, :, -1]))
+    blocker_orientation = -1 * rusher_orientation
+
+    rusher_orientation_scaled = 0.5 * (rusher_orientation + 1)
+    blocker_orientation_scaled = 0.5 * (blocker_orientation + 1)
+
+    rusher_orientation_scaled[rusher_orientation_scaled == 0] = 0.001
+    rusher_orientation_scaled[rusher_orientation_scaled == 1] = 0.999
+
+    blocker_orientation_scaled[blocker_orientation_scaled == 0] = 0.001
+    blocker_orientation_scaled[blocker_orientation_scaled == 1] = 0.999
+
+    beta_variance = 0.85 * (rusher_orientation_scaled) * (1 - rusher_orientation_scaled)
+    alpha_param = np.power(rusher_orientation_scaled, 2) * (
+        (1 - rusher_orientation_scaled) / beta_variance - 1 / rusher_orientation_scaled
+    )
+    beta_param = alpha_param * (1 / rusher_orientation_scaled - 1)
+
+    pdf_orientation = beta(alpha_param, beta_param).pdf(blocker_orientation_scaled)
+
+    return pdf_location * pdf_orientation
+
+
+def sequence_log_likelihood(
+    emission: np.ndarray,
+    initial_state_distribution: np.ndarray,
+    transition_matrix: np.ndarray,
+) -> float:
+    """incomplete-data log-likelihood log P(D_{1:t}) for one defender
+
+    Runs the scaled forward recursion on the UNnormalized emission densities and
+    accumulates the log of each per-step normalizer, which sums to the exact data
+    log-likelihood (the hidden assignment chain marginalized out). EM is guaranteed
+    to increase this quantity, so it is the monotonicity signal for the M-steps.
+
+    Args:
+        emission (np.ndarray): (t, k) unnormalized emission densities
+        initial_state_distribution (np.ndarray): length-k prior over states
+        transition_matrix (np.ndarray): (k, k) transition matrix
+
+    Returns:
+        float: log P(D_{1:t})
+    """
+    t, _ = emission.shape
+    alpha = initial_state_distribution.flatten() * emission[0, :]
+    c = alpha.sum()
+    log_lik = np.log(c)
+    alpha = alpha / c
+    for i in range(1, t):
+        alpha = np.matmul(transition_matrix, alpha) * emission[i, :]
+        c = alpha.sum()
+        log_lik += np.log(c)
+        alpha = alpha / c
+    return float(log_lik)
+
+
+def build_transition_matrix(rho_hat: float, k: int) -> np.ndarray:
+    """(k, k) transition matrix with rho on the diagonal and (1-rho)/(k-1) off"""
+    transition_matrix = np.zeros((k, k))
+    np.fill_diagonal(transition_matrix, rho_hat)
+    transition_matrix[transition_matrix == 0] = (1 - rho_hat) / (k - 1)
+    return transition_matrix
 
 
 def expectation_matchup_step(
@@ -84,55 +198,15 @@ def expectation_matchup_step(
     """
 
     t, k, _ = O.shape  ### get dimensions
-    D = np.repeat(
-        D[:, np.newaxis, :], k, axis=-2
-    )  ### replicate individual lineman k times
-    B = np.repeat(
-        B[:, np.newaxis, :], k, axis=-2
-    )  ## extend ballcarrier k times B has same shape as O
 
-    O_B_stacked = np.stack(
-        (O[:, :, 0:2], B[:, :, 0:2]), axis=-1
-    )  ## new matrix with 4 dimensions (t x 2 x k x 2)
+    pdf_emission = compute_emission(tau_hat, sigma_hat, D, O, B)
+    ### normalize across the k candidate rushers at each timestep. This per-timestep
+    ### rescaling cancels in the gamma/xi posteriors, so it does not affect the
+    ### E-step; the absolute likelihood scale is recovered separately in
+    ### sequence_log_likelihood using the UNnormalized emission.
+    pdf_emission = pdf_emission / pdf_emission.sum(axis=1, keepdims=True)
 
-    expected_centroid = np.squeeze(
-        np.matmul(O_B_stacked, tau_hat)
-    )  ## gets convex combination of expected offensive lineman centroid for each possible defender
-    pdf_location_difference = norm(loc=expected_centroid, scale=np.sqrt(sigma_hat)).pdf(
-        D[:, :, 0:2]
-    )
-    pdf_location_difference = np.prod(
-        pdf_location_difference, -1
-    )  ## since x,y independent normal we multily their densities
-
-    rusher_orientation = np.cos(np.deg2rad(O[:, :, -1]))
-    blocker_orientation = -1 * rusher_orientation
-
-    rusher_orientation_scaled = 0.5 * (rusher_orientation + 1)
-    blocker_orientation_scaled = 0.5 * (blocker_orientation + 1)
-
-    rusher_orientation_scaled[rusher_orientation_scaled == 0] = 0.001
-    rusher_orientation_scaled[rusher_orientation_scaled == 1] = 0.999
-
-    blocker_orientation_scaled[blocker_orientation_scaled == 0] = 0.001
-    blocker_orientation_scaled[blocker_orientation_scaled == 1] = 0.999
-
-    beta_variance = 0.85 * (rusher_orientation_scaled) * (1 - rusher_orientation_scaled)
-    alpha_param = np.power(rusher_orientation_scaled, 2) * (
-        (1 - rusher_orientation_scaled) / beta_variance - 1 / rusher_orientation_scaled
-    )
-    beta_param = alpha_param * (1 / rusher_orientation_scaled - 1)
-
-    pdf_orientation_difference = beta(alpha_param, beta_param).pdf(
-        blocker_orientation_scaled
-    )
-
-    pdf_emission = pdf_location_difference * pdf_orientation_difference
-    pdf_emission /= pdf_emission.sum(axis=1, keepdims=True)
-
-    transition_matrix = np.zeros((k, k))  ### state transition matrix
-    np.fill_diagonal(transition_matrix, rho_hat)
-    transition_matrix[transition_matrix == 0] = (1 - rho_hat) / (k - 1)
+    transition_matrix = build_transition_matrix(rho_hat, k)
 
     forward_result = forward_procedure(
         pdf_emission, forward_result, transition_matrix, t
@@ -168,7 +242,10 @@ def forward_procedure(
     k, _ = transition_matrix.shape
     out_array = np.zeros((max_timestep, k))
     t = 0  ## base case
-    out_array[t, :] = initial_state_distribution[t, :] * pdf_location_difference[t, :]
+    ### initial_state_distribution is the length-k prior pi over states; flatten so
+    ### a (k,) or (k, 1) argument both behave as the full prior (previously [0, :]
+    ### picked only its first component).
+    out_array[t, :] = initial_state_distribution.flatten() * pdf_location_difference[t, :]
     out_array[t, :] /= out_array[t, :].sum()
     t += 1
     while t < max_timestep:
@@ -223,13 +300,16 @@ def maximize_tau(X: np.ndarray, Sigma: np.ndarray, D: np.ndarray) -> np.ndarray:
     """
 
     _, d = X.shape
-    X_T_Sigma_inv = X.T * (Sigma)
-    X_T_Sigma_inv_X = np.matmul(X_T_Sigma_inv, X)
-    tau_gls = solve(X_T_Sigma_inv_X, np.matmul(X_T_Sigma_inv, D))  # gls estimator
+    X_T_W = X.T * (Sigma)  ### X' W, with W = diag(Sigma)
+    X_T_W_X = np.matmul(X_T_W, X)
+    tau_gls = solve(X_T_W_X, np.matmul(X_T_W, D))  # unconstrained gls estimator
     unit_vector = np.ones((d, 1))
-    A = solve(X_T_Sigma_inv_X, unit_vector)
-    B = 1 / np.squeeze(unit_vector.T.dot(X_T_Sigma_inv_X).dot(unit_vector))
-    tau_hat = tau_gls + (1 - tau_gls.dot(unit_vector.T)).dot(A * np.squeeze(B))
+    ### constrained gls projection onto the simplex {tau : 1' tau = 1}
+    ### tau_hat = tau_gls + (X'WX)^-1 1 * (1 - 1' tau_gls) / (1' (X'WX)^-1 1)
+    A = solve(X_T_W_X, unit_vector)  # (X'WX)^-1 1
+    denom = float(unit_vector.T @ A)  # 1' (X'WX)^-1 1 (scalar)
+    correction = (1.0 - float(unit_vector.T @ tau_gls)) / denom
+    tau_hat = tau_gls + A * correction
     return tau_hat
 
 
@@ -248,32 +328,13 @@ def maximize_sigma(
         np.ndarray: scalar of sigma
     """
 
-    n, _ = X.shape
+    ### isotropic variance MLE: weighted SSE divided by the responsibility mass.
+    ### Each design row carries weight Sigma (the assignment responsibility), and
+    ### for a fixed (t, j) the responsibilities sum to 1 across the k candidate
+    ### rushers, so Sigma.sum() is the effective per-coordinate sample size. The
+    ### previous normalizer X.shape[0] (= 2*t*j*k raw rows) biased sigma low by ~k.
     residual = D - np.matmul(X, tau_hat)
-    return np.matmul(residual.T * (Sigma), residual) / n
-
-
-def maximize_rho_possession(A: np.ndarray) -> float:
-    """returns estimate of rho
-
-    Args:
-        A (np.ndarray): (n*t x j x k) size tensor with first index representing each time step, j representing players and k representing pass rushers
-
-
-    Returns:
-        float: estimate of rho
-    """
-
-    ### note the first dimension of k is the time spent in your own state
-    ### all other dimensions are transitions not to your own state
-
-    _, _, k = A.shape
-    numerator = np.sum(A[:, :, 0])
-    denominator = np.sum(A) - numerator
-    Q_hat = (1 / (k - 1)) * numerator / denominator
-
-    rho = Q_hat / (1 + Q_hat)
-    return rho
+    return np.matmul(residual.T * (Sigma), residual) / Sigma.sum()
 
 
 def maximize_rho(A: List[np.ndarray]) -> float:
@@ -286,14 +347,19 @@ def maximize_rho(A: List[np.ndarray]) -> float:
         float: our best estimate of rho
     """
 
-    likelihood = 0
-    likelihood_2 = 0
+    ### Closed-form M-step for the stickiness rho. The transition model is
+    ### P(stay) = rho, P(switch to a specific other state) = (1 - rho) / (k - 1).
+    ### Maximizing the expected complete-data transition log-likelihood
+    ###   S log rho + W log(1 - rho) - W log(k - 1)
+    ### (S = expected stays, W = expected switches) gives rho = S / (S + W),
+    ### i.e. Q = rho / (1 - rho) = S / W with NO (k - 1) factor.
+    stay = 0.0
+    switch = 0.0
     for element in A:
-        _, _, k, _ = element.shape
-        likelihood += np.trace(np.sum(element, axis=(0, 1)))
-        c = np.sum(element, axis=(0, 1))
-        likelihood_2 += 1 / (k - 1) * (c.sum() - np.trace(c))
-    Q_hat = likelihood / likelihood_2
+        c = np.sum(element, axis=(0, 1))  ### (k, k) expected transition counts
+        stay += np.trace(c)
+        switch += c.sum() - np.trace(c)
+    Q_hat = stay / switch
     return Q_hat / (1 + Q_hat)
 
 
@@ -369,7 +435,7 @@ def expectation_maximization_possession(
     )  ### expectation step
 
     ### rho update
-    rho_new = maximize_rho_possession(A)
+    rho_new = maximize_rho([A])
 
     ### tau update
 
@@ -428,12 +494,12 @@ def expectation_maximization(
     y_new = np.vstack(y_list)
     Sigma_new = np.concatenate(Sigma_list)
 
-    lik = calculate_log_likelihood_regression(
-        Sigma_new, tau_init, X_new, y_new, sigma_init
+    ### incomplete-data log-likelihood at the CURRENT parameters; EM must increase
+    ### this across iterations (use it as the monotonicity / correctness signal).
+    log_likelihood = data_log_likelihood(
+        tau_init, sigma_init, rho_init, forward_result, D, O, B
     )
-    lik_2 = calculate_log_likelihood_probability(rho_init, A_list)
-
-    print(f"Total Likelihood: {lik_2 - lik}")
+    print(f"Data log-likelihood: {log_likelihood}")
 
     ### rho update
     rho_new = maximize_rho(A_list)
@@ -447,39 +513,43 @@ def expectation_maximization(
     return tau_new, sigma_new, rho_new, forward_result_list
 
 
-def calculate_log_likelihood_regression(
-    Sigma: np.ndarray, tau: np.ndarray, X: np.ndarray, D: np.ndarray, sigma: np.ndarray
+def data_log_likelihood(
+    tau: np.ndarray,
+    sigma: float,
+    rho: float,
+    forward_result: List[np.ndarray],
+    D: List[np.ndarray],
+    O: List[np.ndarray],
+    B: List[np.ndarray],
 ) -> float:
-    """
+    """total incomplete-data log-likelihood across all possessions and defenders
+
+    Sums log P(D_{1:t}) (hidden assignment chain marginalized out, via the forward
+    recursion on unnormalized emissions) over every defender in every possession.
+    EM is guaranteed to increase this between iterations, so a non-decreasing
+    sequence of these values is the correctness check on the M-step updates.
 
     Args:
-        Sigma (np.ndarray): possition assignments (n x 1) for a possession
-        tau (np.ndarray):  (2 x 1 ) coeff vector
-        X (np.ndarray): n x 2 matrix
-        D (np.ndarray): n x 1 matrix
-        sigma (np.ndarray): variance float estimate
-    """
+        tau (np.ndarray): (2, 1) simplex vector
+        sigma (float): position variance
+        rho (float): stickiness
+        forward_result (List[np.ndarray]): per-possession (j, k) prior over states
+        D (List[np.ndarray]): per-possession (t, j, .) blocker positions
+        O (List[np.ndarray]): per-possession (t, k, .) rusher positions
+        B (List[np.ndarray]): per-possession (t, 2) qb positions
 
-    residual = np.square(np.matmul(X, tau) - D).T / sigma
-    return np.sum(Sigma * residual)
-
-
-def calculate_log_likelihood_probability(rho: float, A: List[np.ndarray]) -> float:
-    """
-
-    Args:
-        rho (float): value of switch
-        A (List[np.ndarray]): list of arrays to add likelihood to
     Returns:
-        float: log likelihood
+        float: total data log-likelihood
     """
-    likelihood = 0
-    for element in A:
-        _, _, k, _ = element.shape
-        likelihood += np.log(rho) * np.trace(np.sum(element, axis=(0, 1)))
-        c = np.sum(element, axis=(0, 1))
-        likelihood += np.log((1 - rho) / (k - 1)) * (c.sum() - np.trace(c))
-    return likelihood
+    total = 0.0
+    for i in range(len(D)):
+        k = O[i].shape[1]
+        transition_matrix = build_transition_matrix(rho, k)
+        prior = np.asarray(forward_result[i])
+        for m in range(D[i].shape[1]):
+            emission = compute_emission(tau, sigma, D[i][:, m, :], O[i], B[i])
+            total += sequence_log_likelihood(emission, prior[m, :], transition_matrix)
+    return total
 
 
 if __name__ == "__main__":
