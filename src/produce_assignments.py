@@ -106,8 +106,14 @@ def load_rho_null_by_position(path="fitted_params_jax.csv"):
     return {row["position"]: float(row["rho_null"]) for _, row in df.iterrows()}
 
 
-def _blocker_gamma(tau, sigma, rho, p_fail, rho_null, O, B, D_b, t_mask, log_pi, c_b):
-    """smoothed posterior gamma (t, k[+1]) for one blocker (D_b (t,1,C), log_pi (k[+1],))"""
+# FILTERED (forward-only, causal) assignments instead of smoothed gamma: the filtered posterior
+# P(state_t | obs_{1:t}) uses no future frames, so it does not leak look-ahead information into the
+# assignment. Set via produce_assignments(..., filtered=True); default keeps the smoothed behavior.
+FILTERED = False
+
+
+def _blocker_posterior(tau, sigma, rho, p_fail, rho_null, O, B, D_b, t_mask, log_pi, c_b, filtered):
+    """smoothed gamma (filtered=False) or causal filtered forward posterior (filtered=True), (t,k[+1])."""
     log_emis = bwj.emission_logprob(
         tau, sigma, O, B, D_b, ORIENT, CONC, null_state=NULL_STATE, c_b=c_b)[:, 0, :]
     K = O.shape[1]
@@ -115,17 +121,26 @@ def _blocker_gamma(tau, sigma, rho, p_fail, rho_null, O, B, D_b, t_mask, log_pi,
         log_T = bwj.build_log_transition_null_batched(rho, p_fail, rho_null, K)
     else:
         log_T = bwj.build_log_transition(rho, K + (1 if NULL_STATE else 0))
+    if filtered:
+        return bwj.filtered_single(log_emis, log_pi, log_T, t_mask)
     gamma, _, _ = bwj.forward_backward_single(log_emis, log_pi, log_T, t_mask)
     return gamma
 
 
-# vmap over blockers (inner) and possessions (outer); O/B/t_mask/c_b shared per possession
-_gamma_batch = jax.jit(
-    jax.vmap(
-        jax.vmap(_blocker_gamma, in_axes=(0, 0, 0, 0, 0, None, None, 0, None, 0, None)),
-        in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, None),
+def _make_batch(filtered):
+    """vmap over blockers (inner) and possessions (outer); O/B/t_mask/c_b shared per possession."""
+    fn = lambda tau, sig, rho, pf, rn, O, B, Db, tm, lp, cb: _blocker_posterior(
+        tau, sig, rho, pf, rn, O, B, Db, tm, lp, cb, filtered)
+    return jax.jit(
+        jax.vmap(
+            jax.vmap(fn, in_axes=(0, 0, 0, 0, 0, None, None, 0, None, 0, None)),
+            in_axes=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, None),
+        )
     )
-)
+
+
+_gamma_batch = _make_batch(False)
+_filtered_batch = _make_batch(True)
 
 
 def _extract(poss, plays_df, pff_df):
@@ -252,8 +267,9 @@ def _process_week(data, fitted, plays_df, pff_df, rho_player=None, c_b=C_B,
                 rho_nulls[p, bi] = rho_null_by_pos.get(positions[bi], _RHONULL_DEFAULT)
                 log_pi[p, bi] = _prior_log_pi(X[bi], par, k)
 
+        batch = _filtered_batch if FILTERED else _gamma_batch
         gammas = np.asarray(
-            _gamma_batch(
+            batch(
                 jnp.asarray(taus), jnp.asarray(sigmas), jnp.asarray(rhos),
                 jnp.asarray(pfails), jnp.asarray(rho_nulls),
                 jnp.asarray(O_a), jnp.asarray(B_a), jnp.asarray(Db),
@@ -277,8 +293,15 @@ def produce_assignments(
     out_path="assignment_data.csv",
     rho_by_player_path="rho_by_player.csv",
     c_b=C_B,
+    filtered=False,
 ):
-    """write frame-by-frame assignment_data.csv from every possession in every week"""
+    """write frame-by-frame assignment_data.csv from every possession in every week.
+
+    filtered=True emits the CAUSAL filtered posterior P(state_t | obs_{1:t}) (forward-only)
+    instead of the smoothed gamma, so the assignment at frame t carries no look-ahead.
+    """
+    global FILTERED
+    FILTERED = filtered
     if csv_paths is None:
         csv_paths = [f"data/sample_data_week_{i}.csv" for i in range(8)]
     elif isinstance(csv_paths, str):

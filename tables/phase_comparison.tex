@@ -3,12 +3,12 @@
 \footnotesize
 \begin{tabular}{lcccccc}
 \toprule
-Phase & $\sigma$ & blk $\rho_S$ & rush $\rho_S$ & QB $\rho_S$ & blk mean$|e|$ & blk p95$|e|$ \\
+Assignments & $\sigma$ & blk $\rho_S$ & rush $\rho_S$ & QB $\rho_S$ & blk mean$|e|$ & blk p95$|e|$ \\
 \midrule
-0 (raw) & 0.764 & 1.000 & 1.000 & 1.000 & 0.299 & 0.405 \\
-1 ($\rho_j$) & 0.765 & 1.000 & 1.000 & 1.000 & 0.299 & 0.405 \\
-2 (null) & 0.762 & 0.980 & 0.987 & 0.989 & 0.348 & 0.466 \\
-2.5 (struct null) & 0.762 & 0.966 & 0.980 & 0.981 & 0.357 & 0.484 \\
+Raw & 0.764 & 1.000 & 1.000 & 1.000 & 0.299 & 0.405 \\
+$+$ per-player stickiness & 0.765 & 1.000 & 1.000 & 1.000 & 0.299 & 0.405 \\
+$+$ null state & 0.762 & 0.980 & 0.987 & 0.989 & 0.348 & 0.466 \\
+$+$ structured null & 0.762 & 0.966 & 0.980 & 0.981 & 0.357 & 0.484 \\
 \bottomrule
 \end{tabular}
 \caption{Play-level plus-minus across assignment refinements: residual $\sigma$, Spearman rank-correlation of effects vs.\ the raw-assignment fit ($\rho_S$), and blocker effect magnitude. Rankings are highly preserved while null de-biasing sharpens blocker effects.}

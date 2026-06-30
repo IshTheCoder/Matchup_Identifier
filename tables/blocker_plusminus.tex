@@ -1,111 +1,58 @@
+% Play-level plus-minus blocker effect (higher = better pressure suppression,
+% since the blocker term is subtracted), per position. TOP only; bottom in _bot file.
 \begin{table}[h!]
 \centering
-\begin{subtable}{0.32\textwidth}
+\begin{subtable}{0.48\textwidth}
 \centering
 \footnotesize
-\begin{tabular}{lc}
+\begin{tabular}{lcc}
 \toprule
-Name & Effect \\
+Name & Effect & 95\% CI \\
 \midrule
-Matt Pryor & 0.53 \\
-Charlie Heck & 0.52 \\
-Marcus Cannon & 0.52 \\
-Tytus Howard & 0.51 \\
-Morgan Moses & 0.51 \\
+Matt Pryor & 0.53 & $[0.38,\,0.68]$ \\
+Charlie Heck & 0.52 & $[0.39,\,0.67]$ \\
+Marcus Cannon & 0.52 & $[0.37,\,0.67]$ \\
+Tytus Howard & 0.52 & $[0.39,\,0.64]$ \\
+Morgan Moses & 0.51 & $[0.39,\,0.63]$ \\
 \bottomrule
 \end{tabular}
 \caption{T}
 \end{subtable}
 \hfill
-\begin{subtable}{0.32\textwidth}
+\begin{subtable}{0.48\textwidth}
 \centering
 \footnotesize
-\begin{tabular}{lc}
+\begin{tabular}{lcc}
 \toprule
-Name & Effect \\
+Name & Effect & 95\% CI \\
 \midrule
-Quenton Nelson & 0.57 \\
-Ben Cleveland & 0.52 \\
-Cesar Ruiz & 0.48 \\
-Chris Reed & 0.46 \\
-Robert Hunt & 0.45 \\
+Quenton Nelson & 0.57 & $[0.43,\,0.70]$ \\
+Ben Cleveland & 0.52 & $[0.34,\,0.70]$ \\
+Cesar Ruiz & 0.48 & $[0.35,\,0.61]$ \\
+Chris Reed & 0.46 & $[0.32,\,0.59]$ \\
+Robert Hunt & 0.46 & $[0.34,\,0.57]$ \\
 \bottomrule
 \end{tabular}
 \caption{G}
 \end{subtable}
-\hfill
-\begin{subtable}{0.32\textwidth}
-\centering
-\footnotesize
-\begin{tabular}{lc}
-\toprule
-Name & Effect \\
-\midrule
-Justin McCray & 0.41 \\
-Rodney Hudson & 0.41 \\
-Alex Mack & 0.41 \\
-Connor McGovern & 0.39 \\
-Ryan Jensen & 0.38 \\
-\bottomrule
-\end{tabular}
-\caption{C}
-\end{subtable}
-\caption{Top 5 pass blockers by plus-minus effect, by position (structured-null de-biased assignments, min 50 snaps).}
-\label{tab:blocker_pm_top}
-\end{table}
 
-\begin{table}[h!]
-\centering
-\begin{subtable}{0.32\textwidth}
-\centering
-\footnotesize
-\begin{tabular}{lc}
-\toprule
-Name & Effect \\
-\midrule
-Dan Moore & 0.19 \\
-Yosuah Nijman & 0.23 \\
-D.J. Humphries & 0.24 \\
-Jedrick Wills & 0.27 \\
-Royce Newman & 0.27 \\
-\bottomrule
-\end{tabular}
-\caption{T}
-\end{subtable}
-\hfill
-\begin{subtable}{0.32\textwidth}
+\bigskip
+\begin{subtable}{0.48\textwidth}
 \centering
 \footnotesize
-\begin{tabular}{lc}
+\begin{tabular}{lcc}
 \toprule
-Name & Effect \\
+Name & Effect & 95\% CI \\
 \midrule
-Jalen Mayfield & 0.22 \\
-Ben Bredeson & 0.23 \\
-Wes Schweitzer & 0.25 \\
-Kyle Fuller & 0.26 \\
-Elgton Jenkins & 0.26 \\
-\bottomrule
-\end{tabular}
-\caption{G}
-\end{subtable}
-\hfill
-\begin{subtable}{0.32\textwidth}
-\centering
-\footnotesize
-\begin{tabular}{lc}
-\toprule
-Name & Effect \\
-\midrule
-Garrett Bradbury & 0.20 \\
-Kendrick Green & 0.20 \\
-Austin Reiter & 0.24 \\
-Andre James & 0.25 \\
-Brian Allen & 0.26 \\
+Justin McCray & 0.41 & $[0.26,\,0.56]$ \\
+Rodney Hudson & 0.41 & $[0.28,\,0.54]$ \\
+Alex Mack & 0.41 & $[0.27,\,0.54]$ \\
+Connor McGovern & 0.40 & $[0.27,\,0.52]$ \\
+Ryan Jensen & 0.38 & $[0.27,\,0.50]$ \\
 \bottomrule
 \end{tabular}
 \caption{C}
 \end{subtable}
-\caption{Bottom 5 pass blockers by plus-minus effect, by position (structured-null de-biased assignments, min 50 snaps).}
-\label{tab:blocker_pm_bot}
+\caption{Top 5 pass blockers by plus-minus effect, by position (min 50 pass snaps). Brackets are 95\% posterior credible intervals.}
+\label{tab:blocker_pm_top}
 \end{table}

@@ -323,7 +323,7 @@ def build_play_design(sample_data, assignment_data, plays, games, players,
         rows = []
         pos_levels = None
         if positions:
-            pos = [pl["officialPosition"].get(i, "UNK") for i in ids]
+            pos = [_posgroup(pl["officialPosition"].get(i, "UNK")) for i in ids]
             pos_levels = sorted(set(pos))[1:]  # drop first as reference
         h = np.array([pl["height_in"].get(i, np.nan) for i in ids], float)
         w = np.array([pl["weight"].get(i, np.nan) for i in ids], float)
@@ -332,7 +332,7 @@ def build_play_design(sample_data, assignment_data, plays, games, players,
         cols = []
         if positions:
             for lev in pos_levels:
-                cols.append(np.array([1.0 if pl["officialPosition"].get(i, "UNK") == lev else 0.0
+                cols.append(np.array([1.0 if _posgroup(pl["officialPosition"].get(i, "UNK")) == lev else 0.0
                                       for i in ids]))
         cols += [h, w]
         return np.column_stack(cols)
@@ -380,6 +380,12 @@ def _situation_table(plays, games):
         "possessionTeam", "defensiveTeam", "score_diff", "time_remaining", "yard_line"]]
 
 
+def _posgroup(p):
+    """Merge 4-3 DE and 3-4 OLB into one EDGE position group (same edge-rush role) for the hierarchical
+    attribute-centering; leaves interior DL (DT/NT) and all blocker positions untouched."""
+    return {"DE": "EDGE", "OLB": "EDGE"}.get(p, p)
+
+
 def _attr_matrix(id_map, players_indexed, positions=True):
     """standardized [position dummies (drop ref), height_z, weight_z] per encoded entity"""
     ids = sorted(id_map, key=id_map.get)
@@ -390,9 +396,9 @@ def _attr_matrix(id_map, players_indexed, positions=True):
     w = np.nan_to_num((w - np.nanmean(w)) / (np.nanstd(w) + 1e-9))
     cols = []
     if positions:
-        levels = sorted({pos_get(i, "UNK") for i in ids})[1:]  # drop reference level
+        levels = sorted({_posgroup(pos_get(i, "UNK")) for i in ids})[1:]  # drop reference level
         for lev in levels:
-            cols.append(np.array([1.0 if pos_get(i, "UNK") == lev else 0.0 for i in ids]))
+            cols.append(np.array([1.0 if _posgroup(pos_get(i, "UNK")) == lev else 0.0 for i in ids]))
     cols += [h, w]
     return np.column_stack(cols)
 
@@ -402,15 +408,18 @@ def build_continuous_design(sample_data, assignment_data, plays, games, players)
     sit = _situation_table(plays, games)
     rf, _ = _strain_per_rusher_frame(sample_data)
     n0 = len(rf)
-    # response = MAX strain across ALL rushers at the NEXT frame (the play's peak
-    # pressure at t+1); predictor strain_current = the individual rusher's OWN strain at t.
-    maxnext = (rf.groupby(["gameId", "playId", "frameId"])["strain"].max()
-               .rename("outcome").reset_index())
-    maxnext["frameId"] = maxnext["frameId"] - 1   # shift so it joins onto frame t (its t+1 max)
+    # response = the rusher's OWN strain at the NEXT frame t+1 (a coherent per-rusher AR(1)
+    # target); predictor strain_current = the same rusher's OWN strain at t. The play's peak
+    # pressure (max over rushers) is a REPORTED aggregate, NOT the regression target: targeting
+    # the shared play-frame max from every rusher row collapses to a frame-level average and
+    # makes the own-strain AR term incoherent for all but the arg-max rusher.
+    nextown = (rf[["gameId", "playId", "nflId_pr", "frameId", "strain"]]
+               .rename(columns={"strain": "outcome"}).copy())
+    nextown["frameId"] = nextown["frameId"] - 1   # this t+1 own-strain joins onto frame t
     sit_valid = sit.reset_index().dropna(
         subset=["score_diff", "time_remaining", "yard_line"])[["gameId", "playId"]]
     rf = (rf.rename(columns={"strain": "strain_current"})
-          .merge(maxnext, on=["gameId", "playId", "frameId"], how="left")
+          .merge(nextown, on=["gameId", "playId", "nflId_pr", "frameId"], how="left")
           .dropna(subset=["outcome"])
           .merge(sit_valid, on=["gameId", "playId"])
           .reset_index(drop=True))
@@ -441,6 +450,17 @@ def build_continuous_design(sample_data, assignment_data, plays, games, players)
     assignment[ad["row_id"].to_numpy(), adm_slot] = ad["assignment_probs"].to_numpy()
     blocker_ids = play_blk_ids[rf_play]  # (N_obs, N_blk)
 
+    # NEXT-frame attention theta(.,j,t+1) on the SAME row (frame t): merge assignment on frameId+1
+    rf_next = rf[["gameId", "playId", "nflId_pr", "frameId", "row_id"]].copy()
+    rf_next["frameId"] = rf_next["frameId"] + 1                       # look up t+1 attention
+    ad_n = assignment_data.merge(rf_next, on=["gameId", "playId", "nflId_pr", "frameId"])
+    ad_n = ad_n[[(g, pp, b) in slot_map for g, pp, b in zip(ad_n["gameId"], ad_n["playId"], ad_n["nflId"])]]
+    adm_slot_n = np.array([slot_map[(g, pp, b)] for g, pp, b
+                           in zip(ad_n["gameId"], ad_n["playId"], ad_n["nflId"])])
+    assignment_next = np.zeros((N_obs, N_blk))
+    if len(ad_n):
+        assignment_next[ad_n["row_id"].to_numpy(), adm_slot_n] = ad_n["assignment_probs"].to_numpy()
+
     qb_of_play = (sample_data.drop_duplicates(["gameId", "playId"])
                   .set_index(["gameId", "playId"])["nflId_qb"])
     enc = {
@@ -459,7 +479,7 @@ def build_continuous_design(sample_data, assignment_data, plays, games, players)
     data = {
         "outcome": rf["outcome"].to_numpy(),
         "strain_current": rf["strain_current"].to_numpy(),
-        "assignment": assignment, "blocker_ids": blocker_ids,
+        "assignment": assignment, "assignment_next": assignment_next, "blocker_ids": blocker_ids,
         "rusher_ids": rf["nflId_pr"].map(enc["rusher"]).to_numpy(),
         "quarterback_ids": _pa(lambda p: enc["qb"].get(qb_of_play.get(p), 0)),
         "offense_ids": _pa(lambda p: enc["offense"][g(p, "possessionTeam")]),
@@ -494,10 +514,10 @@ def build_continuous_design(sample_data, assignment_data, plays, games, players)
     return data, enc
 
 
-def build_continuous_design_from_files(weeks=range(8)):
+def build_continuous_design_from_files(weeks=range(8), assignment_path="assignment_data_phase25.csv"):
     sample = pd.concat([pd.read_csv(f"data/sample_data_week_{i}.csv") for i in weeks],
                        ignore_index=True)
-    return build_continuous_design(sample, pd.read_csv("assignment_data.csv"),
+    return build_continuous_design(sample, pd.read_csv(assignment_path),
                                    pd.read_csv("data/plays.csv"), pd.read_csv("data/games.csv"),
                                    pd.read_csv("data/players.csv"))
 
@@ -513,6 +533,317 @@ def build_play_design_from_files(weeks=range(8), assignment_path="assignment_dat
     players = pd.read_csv("data/players.csv")
     return build_play_design(sample, assignment, plays, games, players,
                              normalize_attention=normalize_attention)
+
+
+# --------------------------------------------------------------------------- #
+# QB force-field design (per-QB-frame ragged data dict for QBForceFieldModel)
+# --------------------------------------------------------------------------- #
+def build_qb_force_design(sample_data, assignment_data, plays, games, players,
+                          dmin=0.5, dropback_only=True, openness=None):
+    """One row per (gameId, playId, frameId): observed QB acceleration as the target, plus the
+    per-rusher geometry (rusher->QB unit vector, distance), closing kinematics (closing speed and
+    acceleration toward the QB), and engagement dose, padded to Rmax rushers with rmask.
+    See QBForceFieldModel in model/models.py."""
+    rf, _ = _strain_per_rusher_frame(sample_data)   # per (g,p,frame,rusher), snap->action window
+    dx = (rf["x_smooth_qb"] - rf["x_smooth_pr"]).to_numpy()
+    dy = (rf["y_smooth_qb"] - rf["y_smooth_pr"]).to_numpy()
+    dist = np.hypot(dx, dy)
+    dclip = np.clip(dist, dmin, None)
+    ux, uy = dx / dclip, dy / dclip                 # rusher->QB unit vector (repulsion direction)
+    rf = rf.assign(
+        dist=dist, ux=ux, uy=uy,
+        sclose=ux * rf["dx_smooth_pr"].to_numpy() + uy * rf["dy_smooth_pr"].to_numpy(),
+        aclose=ux * rf["d2x_smooth_pr"].to_numpy() + uy * rf["d2y_smooth_pr"].to_numpy(),
+    )
+    # engagement dose = sum_b theta(b, rusher) (drop the disengaged/null sentinel)
+    ad = assignment_data[assignment_data["nflId_pr"] != -1]
+    dose = (ad.groupby(["gameId", "playId", "frameId", "nflId_pr"])["assignment_probs"]
+            .sum().rename("dose").reset_index())
+    rf = rf.merge(dose, on=["gameId", "playId", "frameId", "nflId_pr"], how="left")
+    dose_coverage = float(rf["dose"].notna().mean())
+    rf["dose"] = rf["dose"].fillna(0.0)
+    # dropback-only for the milestone (rollouts are scheme movement, not rusher-driven)
+    if dropback_only and "playAction" in plays.columns:
+        pa = plays[["gameId", "playId", "playAction"]].drop_duplicates()
+        rf = rf.merge(pa, on=["gameId", "playId"], how="left")
+        rf = rf[rf["playAction"].fillna(0) != 1].copy()
+    # play-contiguous frame spine -> integer row index n
+    frames = (rf[["gameId", "playId", "frameId"]].drop_duplicates()
+              .sort_values(["gameId", "playId", "frameId"]).reset_index(drop=True))
+    frames["n"] = np.arange(len(frames))
+    rf = rf.merge(frames, on=["gameId", "playId", "frameId"], how="left")
+    rf["is_int"] = rf["officialPosition"].isin(["DT", "NT"]).astype(float)   # interior DL
+    rf["is_edge"] = rf["officialPosition"].isin(["DE", "OLB"]).astype(float)  # edge rusher
+    rf = rf.sort_values(["n", "nflId_pr"])
+    rf["slot"] = rf.groupby("n").cumcount()
+    N, Rmax = len(frames), int(rf["slot"].max() + 1)
+    uhat = np.zeros((N, Rmax, 2), np.float32)
+    rvel = np.zeros((N, Rmax, 2), np.float32)        # rusher velocity vector (for field anisotropy)
+    dist_a = np.zeros((N, Rmax), np.float32); sclose = np.zeros((N, Rmax), np.float32)
+    aclose = np.zeros((N, Rmax), np.float32); dose_a = np.zeros((N, Rmax), np.float32)
+    is_int = np.zeros((N, Rmax), np.float32); is_edge = np.zeros((N, Rmax), np.float32)
+    rmask = np.zeros((N, Rmax), np.float32)
+    enc_rusher = _encode(rf["nflId_pr"])
+    rusher_slot_id = np.zeros((N, Rmax), int)        # encoded nflId per slot (for attribution)
+    ni, si = rf["n"].to_numpy(), rf["slot"].to_numpy()
+    uhat[ni, si, 0] = rf["ux"]; uhat[ni, si, 1] = rf["uy"]
+    rvel[ni, si, 0] = rf["dx_smooth_pr"]; rvel[ni, si, 1] = rf["dy_smooth_pr"]
+    dist_a[ni, si] = rf["dist"]; sclose[ni, si] = rf["sclose"]; aclose[ni, si] = rf["aclose"]
+    dose_a[ni, si] = rf["dose"]; is_int[ni, si] = rf["is_int"]; is_edge[ni, si] = rf["is_edge"]
+    rusher_slot_id[ni, si] = rf["nflId_pr"].map(enc_rusher).to_numpy()
+    rmask[ni, si] = 1.0
+    # QB-frame target + position (QB columns are identical across rushers within a frame)
+    qb = rf.drop_duplicates("n").sort_values("n")
+    a_qb = qb[["d2x_smooth_qb", "d2y_smooth_qb"]].to_numpy(np.float32)
+    x_qb = qb[["x_smooth_qb", "y_smooth_qb"]].to_numpy(np.float32)
+    # play index / starts / snap anchor / formation (anchor+formation for later drift modes)
+    play_key = frames["gameId"].astype(str) + "_" + frames["playId"].astype(str)
+    play_row = pd.factorize(play_key)[0].astype(int)
+    play_start = np.concatenate([[0], np.where(np.diff(play_row) != 0)[0] + 1, [N]])
+    x_anchor = x_qb[play_start[:-1]][play_row]      # QB position at each play's first frame
+    enc_form = _encode(plays["offenseFormation"].fillna("UNK"))
+    fmap = (plays.drop_duplicates(["gameId", "playId"])
+            .assign(offenseFormation=lambda d: d["offenseFormation"].fillna("UNK"))
+            .set_index(["gameId", "playId"])["offenseFormation"].to_dict())
+    form_ids = np.array([enc_form.get(fmap.get((g, p), "UNK"), 0)
+                         for g, p in zip(frames["gameId"], frames["playId"])], int)
+    # rusher attribute matrix [position dummies, height_z, weight_z] for attribute-centered charge
+    pl = players.copy()
+    pl["height_in"] = pl["height"].map(_height_to_inches)
+    pl = pl.dropna(subset=["height_in", "weight"]).set_index("nflId")
+    rusher_cov = _attr_matrix(enc_rusher, pl)
+    # QB identity + game situation per frame (controls for volitional/scheme QB movement)
+    sit = _situation_table(plays, games)
+    qb_of_play = (sample_data.drop_duplicates(["gameId", "playId"])
+                  .set_index(["gameId", "playId"])["nflId_qb"])
+    sf = frames[["gameId", "playId"]].merge(sit.reset_index(), on=["gameId", "playId"], how="left")
+    sf["qb"] = [qb_of_play.get((g, p), -1) for g, p in zip(sf["gameId"], sf["playId"])]
+    enc_qb = _encode(sf["qb"]); enc_down = _encode(sf["down"].fillna(-1))
+    enc_qtr = _encode(sf["quarter"].fillna(-1)); enc_cov = _encode(sf["pff_passCoverageType"].fillna("UNK"))
+    qb_ids = sf["qb"].map(enc_qb).to_numpy()
+    down_ids = sf["down"].fillna(-1).map(enc_down).to_numpy()
+    quarter_ids = sf["quarter"].fillna(-1).map(enc_qtr).to_numpy()
+    cov_ids = sf["pff_passCoverageType"].fillna("UNK").map(enc_cov).to_numpy()
+    std = lambda c: np.nan_to_num((sf[c].to_numpy(float) - np.nanmean(sf[c])) / (np.nanstd(sf[c]) + 1e-9))
+    # play-concept controls: dropback type, granular coverage, box count, play-action, QB drop depth
+    extra = (plays.drop_duplicates(["gameId", "playId"])
+             [["gameId", "playId", "dropBackType", "pff_passCoverage", "defendersInBox", "pff_playAction"]])
+    sf = sf.merge(extra, on=["gameId", "playId"], how="left")
+    enc_drop = _encode(sf["dropBackType"].fillna("UNK")); enc_cov2 = _encode(sf["pff_passCoverage"].fillna("UNK"))
+    _z = lambda x: np.nan_to_num((x - np.nanmean(x)) / (np.nanstd(x) + 1e-9)).astype(np.float32)
+    dropdepth = np.hypot(x_qb[:, 0] - x_anchor[:, 0], x_qb[:, 1] - x_anchor[:, 1])   # QB retreat from snap spot
+    open_cov = None
+    if openness is not None:                         # per-frame receiver openness (space-control)
+        of = frames[["gameId", "playId", "frameId"]].merge(
+            openness[["gameId", "playId", "frameId", "open_sum"]], on=["gameId", "playId", "frameId"], how="left")
+        cov = float((of["open_sum"].notna()).mean())
+        print(f"  openness join coverage of QB-frames: {cov:.2f}", flush=True)
+        open_cov = _z(of["open_sum"].fillna(of["open_sum"].median()).to_numpy(float))
+    data = {
+        "a_qb": a_qb, "uhat": uhat, "rvel": rvel, "dist": dist_a, "sclose": sclose, "aclose": aclose,
+        "dose": dose_a, "is_interior": is_int, "is_edge": is_edge, "rmask": rmask,
+        "rusher_slot_id": rusher_slot_id, "rusher_covariates": rusher_cov, "N_rushers": len(enc_rusher),
+        "x_qb": x_qb, "x_anchor": x_anchor,
+        "quarterback_ids": qb_ids, "down_ids": down_ids, "quarter_ids": quarter_ids,
+        "coverage_ids": cov_ids, "score_diff_cov": std("score_diff"),
+        "time_cov": std("time_remaining"), "yard_cov": std("yard_line"),
+        "N_qb": len(enc_qb), "N_down": len(enc_down), "N_quarter": len(enc_qtr), "N_cov": len(enc_cov),
+        "dropback_ids": sf["dropBackType"].fillna("UNK").map(enc_drop).to_numpy(),
+        "cov2_ids": sf["pff_passCoverage"].fillna("UNK").map(enc_cov2).to_numpy(),
+        "box_cov": _z(sf["defendersInBox"].to_numpy(float)),
+        "pa_cov": sf["pff_playAction"].fillna(0).to_numpy(np.float32),
+        "depth_cov": _z(dropdepth), "N_dropback": len(enc_drop), "N_cov2": len(enc_cov2),
+        "form_ids": form_ids, "play_row": play_row, "frame_id": frames["frameId"].to_numpy(int),
+        "gameId": frames["gameId"].to_numpy(), "playId": frames["playId"].to_numpy(),
+        "play_start": play_start, "N_form": len(enc_form), "Rmax": Rmax,
+    }
+    if open_cov is not None:
+        data["open_cov"] = open_cov
+    enc = {"form": enc_form, "rusher": enc_rusher, "qb": enc_qb, "dose_coverage": dose_coverage}
+    return data, enc
+
+
+def build_pocket_design(sample_data, plays, games, players, dropback_only=False, assignment=None):
+    """Per-(gameId,playId,frameId) pocket design for Fernandez-Bornn space control: QB + every
+    pass-RUSHER (defense) + every pass-BLOCKER (offense), each with position/velocity/acceleration,
+    distance-to-QB, mask, and encoded id, padded to per-team max slots. Snap->action windowed.
+    Feeds src/pitch_control.py. (Receivers/coverage DBs are absent from sample_data; this is pocket
+    control among pocket participants.)"""
+    rf, action = _strain_per_rusher_frame(sample_data)        # rusher rows, windowed; has QB+rusher kinematics
+    bcols = ["gameId", "playId", "frameId", "nflId", "x_smooth", "y_smooth",
+             "dx_smooth", "dy_smooth", "d2x_smooth", "d2y_smooth", "officialPosition_pb"]
+    bf = sample_data.drop_duplicates(["gameId", "playId", "nflId", "frameId"])[bcols].copy()
+    bf = bf.merge(action, on=["gameId", "playId"], how="left")
+    bf = bf[bf["action_frame"].isna() | (bf["frameId"] <= bf["action_frame"])]
+
+    frames = (rf[["gameId", "playId", "frameId"]].drop_duplicates()
+              .sort_values(["gameId", "playId", "frameId"]).reset_index(drop=True))
+    frames["n"] = np.arange(len(frames)); N = len(frames)
+    rf = rf.merge(frames, on=["gameId", "playId", "frameId"])
+    bf = bf.merge(frames, on=["gameId", "playId", "frameId"])
+    qb = rf.drop_duplicates("n").sort_values("n")
+    x_qb = qb[["x_smooth_qb", "y_smooth_qb"]].to_numpy(np.float32)
+    v_qb = qb[["dx_smooth_qb", "dy_smooth_qb"]].to_numpy(np.float32)
+    a_qb = qb[["d2x_smooth_qb", "d2y_smooth_qb"]].to_numpy(np.float32)
+
+    enc_rush, enc_blk = _encode(rf["nflId_pr"]), _encode(bf["nflId"])
+    rf = rf.sort_values(["n", "nflId_pr"]); rf["slot"] = rf.groupby("n").cumcount()
+    bf = bf.sort_values(["n", "nflId"]); bf["slot"] = bf.groupby("n").cumcount()
+    R, B = int(rf["slot"].max() + 1), int(bf["slot"].max() + 1)
+
+    def fill(df, cols, K):
+        arr = np.zeros((N, K, len(cols)), np.float32)
+        ni, si = df["n"].to_numpy(), df["slot"].to_numpy()
+        for k, c in enumerate(cols):
+            arr[ni, si, k] = df[c].to_numpy()
+        return arr
+
+    x_rush = fill(rf, ["x_smooth_pr", "y_smooth_pr"], R); v_rush = fill(rf, ["dx_smooth_pr", "dy_smooth_pr"], R)
+    a_rush = fill(rf, ["d2x_smooth_pr", "d2y_smooth_pr"], R)
+    x_blk = fill(bf, ["x_smooth", "y_smooth"], B); v_blk = fill(bf, ["dx_smooth", "dy_smooth"], B)
+    a_blk = fill(bf, ["d2x_smooth", "d2y_smooth"], B)
+    rmask = np.zeros((N, R), np.float32); rmask[rf["n"], rf["slot"]] = 1.0
+    bmask = np.zeros((N, B), np.float32); bmask[bf["n"], bf["slot"]] = 1.0
+    rush_slot_id = np.zeros((N, R), int); rush_slot_id[rf["n"], rf["slot"]] = rf["nflId_pr"].map(enc_rush)
+    blk_slot_id = np.zeros((N, B), int); blk_slot_id[bf["n"], bf["slot"]] = bf["nflId"].map(enc_blk)
+    d_rush = np.hypot(x_rush[..., 0] - x_qb[:, None, 0], x_rush[..., 1] - x_qb[:, None, 1]) * rmask
+    d_blk = np.hypot(x_blk[..., 0] - x_qb[:, None, 0], x_blk[..., 1] - x_qb[:, None, 1]) * bmask
+
+    theta = None
+    if assignment is not None:                                 # HMM weights theta[n, b_slot, r_slot]
+        a = assignment[assignment["nflId_pr"] != -1][["gameId", "playId", "frameId",
+                                                       "nflId_pr", "nflId", "assignment_probs"]]
+        a = a.merge(frames, on=["gameId", "playId", "frameId"]) \
+             .merge(rf[["n", "nflId_pr", "slot"]].rename(columns={"slot": "r_slot"}), on=["n", "nflId_pr"]) \
+             .merge(bf[["n", "nflId", "slot"]].rename(columns={"slot": "b_slot"}), on=["n", "nflId"])
+        theta = np.zeros((N, B, R), np.float32)
+        theta[a["n"].to_numpy(), a["b_slot"].to_numpy(), a["r_slot"].to_numpy()] = a["assignment_probs"].to_numpy()
+    play_key = frames["gameId"].astype(str) + "_" + frames["playId"].astype(str)
+    play_row = pd.factorize(play_key)[0].astype(int)
+    play_start = np.concatenate([[0], np.where(np.diff(play_row) != 0)[0] + 1, [N]])
+    data = {
+        "x_qb": x_qb, "v_qb": v_qb, "a_qb": a_qb,
+        "x_rush": x_rush, "v_rush": v_rush, "a_rush": a_rush, "d_rush": d_rush,
+        "rmask": rmask, "rush_slot_id": rush_slot_id,
+        "x_blk": x_blk, "v_blk": v_blk, "a_blk": a_blk, "d_blk": d_blk,
+        "bmask": bmask, "blk_slot_id": blk_slot_id,
+        "play_row": play_row, "play_start": play_start, "frame_id": frames["frameId"].to_numpy(int),
+        "gameId": frames["gameId"].to_numpy(), "playId": frames["playId"].to_numpy(),
+        "N_rushers": len(enc_rush), "N_blockers": len(enc_blk), "Rmax": R, "Bmax": B,
+    }
+    if theta is not None:
+        data["theta"] = theta
+    return data, {"rusher": enc_rush, "blocker": enc_blk}
+
+
+def build_pocket_design_from_files(weeks=range(1), assignment_path=None):
+    sample = pd.concat([pd.read_csv(f"data/sample_data_week_{i}.csv") for i in weeks], ignore_index=True)
+    assignment = pd.read_csv(assignment_path) if assignment_path else None
+    return build_pocket_design(sample, pd.read_csv("data/plays.csv"), pd.read_csv("data/games.csv"),
+                               pd.read_csv("data/players.csv"), assignment=assignment)
+
+
+FIELD_LEN, FIELD_WID = 120.0, 53.3
+_END_EVENTS = ["pass_forward", "qb_sack", "run", "handoff", "fumble", "qb_strip_sack"]
+
+
+def build_alltwentytwo_design(tracking, pff, plays):
+    """Per-(gameId,playId,frameId) ALL-22 design for full-field/downfield space control & openness.
+    Offense = receivers (PFF 'Pass Route'); defense = coverage (PFF 'Coverage'); plus the QB and the
+    ball. Kinematics derived (no Kalman) from NGS speed/dir/accel; coords NORMALIZED so the offense
+    always attacks +x; windowed snap->release. Feeds src/pitch_control.py (field_grid + radius
+    override). Returns ragged padded arrays + per-frame LOS, ball position, and event."""
+    roles = pff[["gameId", "playId", "nflId", "pff_role"]]
+    ball = tracking[tracking["team"] == "football"][["gameId", "playId", "frameId", "x", "y", "playDirection"]].copy()
+    trk = tracking[tracking["team"] != "football"].copy()
+    trk = trk.dropna(subset=["nflId"]); trk["nflId"] = trk["nflId"].astype(int)
+    trk = trk.merge(roles, on=["gameId", "playId", "nflId"], how="left")
+    trk = trk.merge(plays[["gameId", "playId", "absoluteYardlineNumber"]], on=["gameId", "playId"], how="left")
+
+    left = (trk["playDirection"] == "left").to_numpy()                  # normalize: offense attacks +x
+    trk["xn"] = np.where(left, FIELD_LEN - trk["x"], trk["x"])
+    trk["yn"] = np.where(left, FIELD_WID - trk["y"], trk["y"])
+    dirn = np.where(left, (trk["dir"] + 180.0) % 360.0, trk["dir"]); rad = np.deg2rad(dirn)
+    s, acc = trk["s"].to_numpy(), trk["a"].to_numpy()
+    trk["dx"] = np.cos(rad) * s; trk["dy"] = np.sin(rad) * s
+    trk["d2x"] = np.cos(rad) * acc; trk["d2y"] = np.sin(rad) * acc
+    trk["los"] = np.where(left, FIELD_LEN - trk["absoluteYardlineNumber"], trk["absoluteYardlineNumber"])
+    bleft = (ball["playDirection"] == "left").to_numpy()
+    ball["xn"] = np.where(bleft, FIELD_LEN - ball["x"], ball["x"])
+    ball["yn"] = np.where(bleft, FIELD_WID - ball["y"], ball["y"])
+
+    ev = trk[["gameId", "playId", "frameId", "event"]].dropna(subset=["event"]).drop_duplicates()
+    snap = ev[ev["event"] == "ball_snap"].groupby(["gameId", "playId"])["frameId"].min().rename("snap")
+    end = (ev[ev["event"].isin(_END_EVENTS)].groupby(["gameId", "playId"])["frameId"].min().rename("end"))
+    win = pd.concat([snap, end], axis=1).reset_index()
+    win["end"] = win["end"].fillna(1e9)                                  # no release event -> keep to play end
+    trk = trk.merge(win.dropna(subset=["snap"]), on=["gameId", "playId"])
+    trk = trk[(trk["frameId"] >= trk["snap"]) & (trk["frameId"] <= trk["end"])]
+
+    qb = trk[trk["pff_role"] == "Pass"].drop_duplicates(["gameId", "playId", "frameId"])
+    frames = (qb[["gameId", "playId", "frameId", "los"]].sort_values(["gameId", "playId", "frameId"])
+              .reset_index(drop=True))
+    frames["n"] = np.arange(len(frames)); N = len(frames)
+    key = ["gameId", "playId", "frameId"]
+    qb = qb.merge(frames[key + ["n"]], on=key)
+    x_qb = qb.sort_values("n")[["xn", "yn"]].to_numpy(np.float32)
+    v_qb = qb.sort_values("n")[["dx", "dy"]].to_numpy(np.float32)
+    a_qb = qb.sort_values("n")[["d2x", "d2y"]].to_numpy(np.float32)
+
+    def team(role):
+        d = trk[trk["pff_role"] == role].merge(frames[key + ["n"]], on=key)
+        d = d.sort_values(["n", "nflId"]); d["slot"] = d.groupby("n").cumcount()
+        return d
+    rec, cov = team("Pass Route"), team("Coverage")
+    K, D = int(rec["slot"].max() + 1), int(cov["slot"].max() + 1)
+    enc_rec, enc_cov = _encode(rec["nflId"]), _encode(cov["nflId"])
+
+    def fill(df, cols, Kk):
+        arr = np.zeros((N, Kk, len(cols)), np.float32)
+        ni, si = df["n"].to_numpy(), df["slot"].to_numpy()
+        for j, c in enumerate(cols):
+            arr[ni, si, j] = df[c].to_numpy()
+        return arr
+    pos, vel, acc_c = ["xn", "yn"], ["dx", "dy"], ["d2x", "d2y"]
+    x_rec, v_rec, a_rec = fill(rec, pos, K), fill(rec, vel, K), fill(rec, acc_c, K)
+    x_cov, v_cov, a_cov = fill(cov, pos, D), fill(cov, vel, D), fill(cov, acc_c, D)
+    rec_mask = np.zeros((N, K), np.float32); rec_mask[rec["n"], rec["slot"]] = 1.0
+    cov_mask = np.zeros((N, D), np.float32); cov_mask[cov["n"], cov["slot"]] = 1.0
+    rec_slot_id = np.zeros((N, K), int); rec_slot_id[rec["n"], rec["slot"]] = rec["nflId"].map(enc_rec)
+    cov_slot_id = np.zeros((N, D), int); cov_slot_id[cov["n"], cov["slot"]] = cov["nflId"].map(enc_cov)
+
+    bj = frames.merge(ball[key + ["xn", "yn"]], on=key, how="left")
+    x_ball = bj[["xn", "yn"]].to_numpy(np.float32)
+
+    play_key = frames["gameId"].astype(str) + "_" + frames["playId"].astype(str)
+    play_row = pd.factorize(play_key)[0].astype(int)
+    play_start = np.concatenate([[0], np.where(np.diff(play_row) != 0)[0] + 1, [N]])
+    data = {
+        "x_qb": x_qb, "v_qb": v_qb, "a_qb": a_qb, "x_ball": x_ball,
+        "x_rec": x_rec, "v_rec": v_rec, "a_rec": a_rec, "rec_mask": rec_mask, "rec_slot_id": rec_slot_id,
+        "x_cov": x_cov, "v_cov": v_cov, "a_cov": a_cov, "cov_mask": cov_mask, "cov_slot_id": cov_slot_id,
+        "los_x": frames["los"].to_numpy(np.float32), "play_row": play_row, "play_start": play_start,
+        "frame_id": frames["frameId"].to_numpy(int), "gameId": frames["gameId"].to_numpy(),
+        "playId": frames["playId"].to_numpy(), "K": K, "D": D,
+        "N_rec": len(enc_rec), "N_cov": len(enc_cov),
+    }
+    return data, {"receiver": enc_rec, "coverage": enc_cov}
+
+
+def build_alltwentytwo_design_from_files(weeks=range(1, 2)):
+    tracking = pd.concat([pd.read_csv(f"data/week{i}.csv") for i in weeks], ignore_index=True)
+    return build_alltwentytwo_design(tracking, pd.read_csv("data/pffScoutingData.csv"),
+                                     pd.read_csv("data/plays.csv"))
+
+
+def build_qb_force_design_from_files(weeks=range(1), assignment_path="assignment_data_phase25.csv",
+                                     openness_path=None):
+    sample = pd.concat([pd.read_csv(f"data/sample_data_week_{i}.csv") for i in weeks],
+                       ignore_index=True)
+    openness = pd.read_csv(openness_path) if openness_path else None
+    return build_qb_force_design(sample, pd.read_csv(assignment_path), pd.read_csv("data/plays.csv"),
+                                 pd.read_csv("data/games.csv"), pd.read_csv("data/players.csv"),
+                                 openness=openness)
 
 
 if __name__ == "__main__":

@@ -44,7 +44,6 @@ RUN pip install \
         ### scikit-ntk \                             ###
         ################################################
         numpyro \ 
-        blackjax \
         arviz \
         optax \
         shiny \

@@ -1,22 +1,24 @@
+% QB strain suppression = -Q_q (higher = less peak pressure allowed on this
+% QB's dropbacks), from the play-level plus-minus model, min 50 dropbacks.
 \begin{table}[h!]
 \centering
 \begin{subtable}{0.48\textwidth}
 \centering
 \footnotesize
-\begin{tabular}{lc}
+\begin{tabular}{lcc}
 \toprule
-Name & Strain Suppr. \\
+Name & Strain Suppr. & 95\% CI \\
 \midrule
-Mike White & 0.068 \\
-Kyler Murray & 0.059 \\
-Matthew Stafford & 0.053 \\
-Taylor Heinicke & 0.048 \\
-Jared Goff & 0.036 \\
-Derek Carr & 0.030 \\
-Kirk Cousins & 0.028 \\
-Ben Roethlisberger & 0.026 \\
-Dak Prescott & 0.026 \\
-Aaron Rodgers & 0.026 \\
+Mike White & 0.069 & $[-0.039,\,0.179]$ \\
+Kyler Murray & 0.058 & $[-0.083,\,0.195]$ \\
+Matthew Stafford & 0.054 & $[-0.072,\,0.182]$ \\
+Taylor Heinicke & 0.047 & $[-0.076,\,0.171]$ \\
+Jared Goff & 0.034 & $[-0.092,\,0.161]$ \\
+Derek Carr & 0.031 & $[-0.095,\,0.157]$ \\
+Kirk Cousins & 0.028 & $[-0.104,\,0.163]$ \\
+Aaron Rodgers & 0.027 & $[-0.098,\,0.154]$ \\
+Dak Prescott & 0.025 & $[-0.103,\,0.154]$ \\
+Ben Roethlisberger & 0.023 & $[-0.106,\,0.160]$ \\
 \bottomrule
 \end{tabular}
 \caption{Most strain-suppressing}
@@ -25,25 +27,25 @@ Aaron Rodgers & 0.026 \\
 \begin{subtable}{0.48\textwidth}
 \centering
 \footnotesize
-\begin{tabular}{lc}
+\begin{tabular}{lcc}
 \toprule
-Name & Strain Suppr. \\
+Name & Strain Suppr. & 95\% CI \\
 \midrule
-Davis Mills & -0.092 \\
-Zach Wilson & -0.087 \\
-Jameis Winston & -0.087 \\
-Jacoby Brissett & -0.068 \\
-Carson Wentz & -0.052 \\
-Sam Darnold & -0.035 \\
-Justin Fields & -0.035 \\
-Geno Smith & -0.034 \\
-Lamar Jackson & -0.027 \\
-Teddy Bridgewater & -0.023 \\
+Davis Mills & -0.092 & $[-0.208,\,0.016]$ \\
+Jameis Winston & -0.087 & $[-0.206,\,0.026]$ \\
+Zach Wilson & -0.085 & $[-0.198,\,0.026]$ \\
+Jacoby Brissett & -0.068 & $[-0.180,\,0.039]$ \\
+Carson Wentz & -0.052 & $[-0.187,\,0.081]$ \\
+Sam Darnold & -0.035 & $[-0.153,\,0.079]$ \\
+Justin Fields & -0.032 & $[-0.142,\,0.081]$ \\
+Geno Smith & -0.032 & $[-0.142,\,0.085]$ \\
+Lamar Jackson & -0.027 & $[-0.149,\,0.098]$ \\
+Teddy Bridgewater & -0.023 & $[-0.132,\,0.092]$ \\
 \bottomrule
 \end{tabular}
 \caption{Least strain-suppressing}
 \end{subtable}
 \hfill
-\caption{Quarterbacks by strain suppression (structured-null de-biased assignments, min 50 dropbacks).}
+\caption{Quarterbacks ranked by strain suppression (min 50 dropbacks). Brackets are 95\% posterior credible intervals.}
 \label{tab:qb_suppression}
 \end{table}

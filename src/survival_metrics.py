@@ -125,7 +125,7 @@ def _km_table(fp, by, players, name_col):
                     "km_median_s": med * DT if med == med else np.nan, "rmst_s": rmst * DT})
     df = pd.DataFrame(out)
     df["name"] = df[by].map(players["displayName"])
-    df["pos"] = df[by].map(players["officialPosition"])
+    df["pos"] = df[by].map(players["officialPosition"]).replace({"DE": "Edge", "OLB": "Edge"})  # merge edge
     return df[df.n_blocks >= MIN_PLAYS].reset_index(drop=True)
 
 
@@ -163,7 +163,7 @@ def run(assignment_path="assignment_data.csv"):
                f"min {MIN_PLAYS} blocks", ["name", "rmst_s", "beat_rate", "engage_resid_s"],
                ["Name", "RMST (s)", "Beat rate", "Adj resid (s)"])
     RU = rush.copy()
-    _tex_block(RU[RU.pos.isin(["DE", "DT", "NT", "OLB"])].sort_values("rmst_s").head(15),
+    _tex_block(RU[RU.pos.isin(["Edge", "DT", "NT"])].sort_values("rmst_s").head(15),
                "tables/rusher_shedding.tex", "tab:rusher_shedding",
                "Pass rushers that beat blocks fastest (shortest survival-to-beat), "
                f"min {MIN_PLAYS} blocks", ["name", "pos", "rmst_s", "beat_rate"],

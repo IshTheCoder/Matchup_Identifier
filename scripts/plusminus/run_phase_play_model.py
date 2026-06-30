@@ -66,6 +66,14 @@ ru = rankings("rusher_covariates", "rusher_weight", "z_rusher", "sigma_rusher", 
 bl.to_csv(f"blocker_rankings_{PHASE}.csv", index=False)
 ru.to_csv(f"rusher_rankings_{PHASE}.csv", index=False)
 
+# export posterior effects to model_outputs/*.parquet (R-accessible)
+import model_io as mio
+for _kind, _sn in [("rusher", rsnap), ("blocker", bsnap), ("quarterback", qsnap)]:
+    _dr = mio.reconstruct_draws(samples, data, _kind)
+    _ek = {"rusher": "rusher", "blocker": "blocker", "quarterback": "qb"}[_kind]
+    _inv = {v: k for k, v in enc[_ek].items()}
+    mio.export_effect(f"playpm_{_kind}_{PHASE}", _dr, [_inv[i] for i in range(_dr.shape[1])], players, snaps=_sn)
+
 # --- QB suppression ---
 qd = samples["quarterback_weight"] @ data["quarterback_covariates"].T \
     + samples["sigma_quarterback"][:, None] * samples["z_quarterback"]

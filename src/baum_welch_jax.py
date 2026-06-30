@@ -283,6 +283,31 @@ def forward_backward_single(log_emis_unn, log_pi, log_T, t_mask):
     return gamma, xi, loglik
 
 
+def filtered_single(log_emis_unn, log_pi, log_T, t_mask):
+    """FILTERED (forward-only) posterior P(state_t | obs_{1:t}) for one defender -> (T, k).
+
+    The causal counterpart of forward_backward_single's smoothed gamma: it runs ONLY the
+    forward pass, so frame t's distribution uses no future frames. Use this when the
+    assignment must not leak look-ahead information (e.g. as a regressor for a future-
+    differenced outcome). Same per-timestep k-normalized emissions as the smoother.
+    """
+    T, k = log_emis_unn.shape
+    log_emis_n = log_emis_unn - logsumexp(log_emis_unn, axis=-1, keepdims=True)
+    a0 = log_pi + log_emis_n[0]
+    a0 = a0 - logsumexp(a0)
+
+    def fwd_step(carry, inp):
+        log_e, valid = inp
+        pred = logsumexp(log_T + carry[None, :], axis=1)   # log(T @ alpha)
+        a_unn = jnp.where(valid, pred + log_e, carry)
+        a = a_unn - logsumexp(a_unn)
+        return a, a
+
+    _, a_rest = jax.lax.scan(fwd_step, a0, (log_emis_n[1:], t_mask[1:]))
+    log_alpha = jnp.concatenate([a0[None, :], a_rest], axis=0)  # (T, k), each row normalized
+    return jnp.exp(log_alpha) * t_mask[:, None]
+
+
 def _fb_over_defenders(log_emis_unn_p, log_pi_p, log_T, t_mask_p):
     """vmap forward_backward_single over the J axis of one possession"""
     fn = lambda le, lp: forward_backward_single(le, lp, log_T, t_mask_p)

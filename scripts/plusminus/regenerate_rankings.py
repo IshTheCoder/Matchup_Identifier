@@ -8,8 +8,10 @@ import pandas as pd
 
 MIN_SNAPS = 50  # consistent with the attention / entropy tables
 
-data, enc = pickle.load(open("play_design_8wk.pkl", "rb"))
-samples = pickle.load(open("play_model_samples.pkl", "rb"))
+# Phase-2.5 (asymmetric null + block-failure hazard) is the canonical model for the headline
+# plus-minus tables; the *norm (weight-normalized) variant is a robustness refit reported separately.
+data, enc = pickle.load(open("play_design_phase25.pkl", "rb"))
+samples = pickle.load(open("play_model_samples_phase25.pkl", "rb"))
 players = pd.read_csv("data/players.csv").set_index("nflId")
 
 mask = np.asarray(data["mask"])
@@ -33,8 +35,8 @@ def rankings(cov_key, w_key, z_key, sig_key, enc_key, snaps):
         "name": [players["displayName"].get(i, "?") for i in ids],
         "pos": [players["officialPosition"].get(i, "?") for i in ids],
         "effect": draws.mean(0),
-        "hdi_lo": np.percentile(draws, 3, axis=0),
-        "hdi_hi": np.percentile(draws, 97, axis=0),
+        "hdi_lo": np.percentile(draws, 2.5, axis=0),
+        "hdi_hi": np.percentile(draws, 97.5, axis=0),
         "snaps": snaps,
     })
     df = df[df["snaps"] >= MIN_SNAPS]
@@ -43,51 +45,66 @@ def rankings(cov_key, w_key, z_key, sig_key, enc_key, snaps):
 
 bl = rankings("blocker_covariates", "blocker_weight", "z_blocker", "sigma_blocker", "blocker", blocker_snaps)
 ru = rankings("rusher_covariates", "rusher_weight", "z_rusher", "sigma_rusher", "rusher", rusher_snaps)
+ru["pos"] = ru["pos"].replace({"DE": "Edge", "OLB": "Edge"})   # 4-3 DE + 3-4 OLB = one edge-rush group
 bl.to_csv("blocker_rankings.csv", index=False)
 ru.to_csv("rusher_rankings.csv", index=False)
 
 
 # ------------------------------------------------ .tex tables by position --
+# Effect = posterior mean; brackets = 95% credible interval (2.5--97.5 pct of the draws).
 def _rows(df):
-    return " \\\\\n".join(f"{r['name']} & {r['effect']:.2f}" for _, r in df.iterrows()) + " \\\\"
+    return " \\\\\n".join(
+        f"{r['name']} & {r['effect']:.2f} & $[{r['hdi_lo']:.2f},\\,{r['hdi_hi']:.2f}]$"
+        for _, r in df.iterrows()) + " \\\\"
 
 
-def _subtable(df, cap, width="0.24"):
+def _subtable(df, cap, width="0.48"):
     return ("\\begin{subtable}{" + width + "\\textwidth}\n\\centering\n\\footnotesize\n"
-            "\\begin{tabular}{lc}\n\\toprule\nName & Effect \\\\\n\\midrule\n"
+            "\\begin{tabular}{lcc}\n\\toprule\nName & Effect & 95\\% CI \\\\\n\\midrule\n"
             + _rows(df) + "\n\\bottomrule\n\\end{tabular}\n\\caption{" + cap + "}\n\\end{subtable}")
 
 
-def _table(groups, df, top, label, caption, width="0.24"):
-    subs = []
-    for g in groups:
-        d = df[df["pos"] == g].sort_values("effect", ascending=not top).head(5)
-        subs.append(_subtable(d, g, width))
-    return ("\\begin{table}[h!]\n\\centering\n" + "\n\\hfill\n".join(subs)
-            + "\n\\caption{" + caption + "}\n\\label{" + label + "}\n\\end{table}\n")
+def _table(groups, df, top, label, caption, width="0.48"):
+    # two subtables per row (the CI column needs the width); break the line after each pair
+    subs = [_subtable(df[df["pos"] == g].sort_values("effect", ascending=not top).head(5), g, width)
+            for g in groups]
+    body = ""
+    for i in range(0, len(subs), 2):
+        body += "\n\\hfill\n".join(subs[i:i + 2])
+        body += "\n\n\\bigskip\n" if i + 2 < len(subs) else "\n"
+    return ("\\begin{table}[h!]\n\\centering\n" + body
+            + "\\caption{" + caption + "}\n\\label{" + label + "}\n\\end{table}\n")
 
 
-RUSH = ["DE", "DT", "NT", "OLB"]
+RUSH = ["Edge", "DT", "NT"]
 BLK = ["T", "G", "C"]  # TE/RB/FB rarely reach the pass-block snap threshold
 NOTE = f"(min {MIN_SNAPS} pass snaps)"
 
+# Top tables go in Results; the bottom-five-by-position tables are emitted as SEPARATE files so the
+# paper can place them in the appendix.
 with open("tables/rusher_plusminus.tex", "w") as f:
     f.write("% Play-level plus-minus rusher effect (higher = more peak pressure generated),\n"
-            "% attribute-centered, per position, filtered by snaps.\n")
+            "% attribute-centered, per position, filtered by snaps. TOP only; bottom in _bot file.\n")
     f.write(_table(RUSH, ru, True, "tab:rusher_pm_top",
-                   f"Top 5 pass rushers by plus-minus effect, by position {NOTE}."))
-    f.write("\n")
+                   f"Top 5 pass rushers by plus-minus effect, by position {NOTE}. "
+                   "Brackets are 95\\% posterior credible intervals."))
+with open("tables/rusher_plusminus_bot.tex", "w") as f:
+    f.write("% Bottom-five pass rushers by plus-minus effect (appendix).\n")
     f.write(_table(RUSH, ru, False, "tab:rusher_pm_bot",
-                   f"Bottom 5 pass rushers by plus-minus effect, by position {NOTE}."))
+                   f"Bottom 5 pass rushers by plus-minus effect, by position {NOTE}. "
+                   "Brackets are 95\\% posterior credible intervals."))
 
 with open("tables/blocker_plusminus.tex", "w") as f:
     f.write("% Play-level plus-minus blocker effect (higher = better pressure suppression,\n"
-            "% since the blocker term is subtracted), attribute-centered, per position.\n")
+            "% since the blocker term is subtracted), per position. TOP only; bottom in _bot file.\n")
     f.write(_table(BLK, bl, True, "tab:blocker_pm_top",
-                   f"Top 5 pass blockers by plus-minus effect, by position {NOTE}.", width="0.32"))
-    f.write("\n")
+                   f"Top 5 pass blockers by plus-minus effect, by position {NOTE}. "
+                   "Brackets are 95\\% posterior credible intervals."))
+with open("tables/blocker_plusminus_bot.tex", "w") as f:
+    f.write("% Bottom-five pass blockers by plus-minus effect (appendix).\n")
     f.write(_table(BLK, bl, False, "tab:blocker_pm_bot",
-                   f"Bottom 5 pass blockers by plus-minus effect, by position {NOTE}.", width="0.32"))
+                   f"Bottom 5 pass blockers by plus-minus effect, by position {NOTE}. "
+                   "Brackets are 95\\% posterior credible intervals."))
 
 # ------------------------------------------------ QB strain suppression --
 # Q_q enters the peak-strain predictor additively, so a LOWER QB effect means
@@ -112,7 +129,9 @@ qb.to_csv("qb_suppression.csv", index=False)
 
 
 def _qb_block(df):
-    return " \\\\\n".join(f"{r['name']} & {r['suppression']:.3f}" for _, r in df.iterrows()) + " \\\\"
+    return " \\\\\n".join(
+        f"{r['name']} & {r['suppression']:.3f} & $[{r['hdi_lo']:.3f},\\,{r['hdi_hi']:.3f}]$"
+        for _, r in df.iterrows()) + " \\\\"
 
 
 with open("tables/qb_suppression.tex", "w") as f:
@@ -123,11 +142,12 @@ with open("tables/qb_suppression.tex", "w") as f:
     for d, cap in [(qb.head(10), "Most strain-suppressing"),
                    (qb.tail(10).iloc[::-1], "Least strain-suppressing")]:
         f.write("\\begin{subtable}{0.48\\textwidth}\n\\centering\n\\footnotesize\n"
-                "\\begin{tabular}{lc}\n\\toprule\nName & Strain Suppr. \\\\\n\\midrule\n"
+                "\\begin{tabular}{lcc}\n\\toprule\nName & Strain Suppr. & 95\\% CI \\\\\n\\midrule\n"
                 + _qb_block(d) + "\n\\bottomrule\n\\end{tabular}\n\\caption{" + cap
                 + "}\n\\end{subtable}\n\\hfill\n")
-    f.write("\\caption{Quarterbacks ranked by strain suppression "
-            "(min " + str(MIN_SNAPS) + " dropbacks).}\n\\label{tab:qb_suppression}\n\\end{table}\n")
+    f.write("\\caption{Quarterbacks ranked by strain suppression (min " + str(MIN_SNAPS)
+            + " dropbacks). Brackets are 95\\% posterior credible intervals.}"
+            "\n\\label{tab:qb_suppression}\n\\end{table}\n")
 
 # ------------------------------------------------------------- console --
 print(f"snap threshold = {MIN_SNAPS}")
@@ -141,4 +161,5 @@ for g in BLK:
 print(f"  QBs kept: {len(qb)} | most suppr: " + ", ".join(
     f"{r['name']} {r['suppression']:.3f}" for _, r in qb.head(3).iterrows()))
 print("wrote rusher_rankings.csv, blocker_rankings.csv, qb_suppression.csv, "
-      "tables/{rusher_plusminus,blocker_plusminus,qb_suppression}.tex")
+      "tables/{rusher_plusminus,blocker_plusminus,qb_suppression}.tex and "
+      "tables/{rusher,blocker}_plusminus_bot.tex (appendix bottom-five)")

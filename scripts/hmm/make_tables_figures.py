@@ -32,7 +32,7 @@ rp = att.groupby(["nflId_pr", "gameId", "playId"]).agg(
     attention=("attention", "mean"), rel=("rel", "mean")).reset_index()
 rush = rp.groupby("nflId_pr").agg(
     attention=("attention", "mean"), rel=("rel", "mean"), snaps=("attention", "size")).reset_index()
-rush["pos"] = rush["nflId_pr"].map(pos)
+rush["pos"] = rush["nflId_pr"].map(pos).replace({"DE": "Edge", "OLB": "Edge"})  # merge edge rushers
 rush["name"] = rush["nflId_pr"].map(name)
 rush = rush[rush["snaps"] >= MIN_SNAPS]
 
@@ -55,18 +55,18 @@ def _rows(df, cols, fmt):
 
 
 # ------------------------------------------------ attention table (.tex) --
-RUSH_GROUPS = ["DE", "DT", "NT", "OLB"]
+RUSH_GROUPS = ["Edge", "DT", "NT"]
 
 
 def _subtable(df, cap):
     body = _rows(df[["name", "rel"]], ["name", "rel"],
                  {"name": lambda x: str(x), "rel": lambda x: f"{x:.2f}"})
-    # \resizebox scales the (long-name) 4-across tabular to its 0.24\textwidth box so the
-    # subtable row never overflows \textwidth regardless of name lengths.
-    return ("\\begin{subtable}{0.24\\textwidth}\n\\centering\n\\resizebox{\\linewidth}{!}{%\n"
+    # Uniform \scriptsize font (no per-subtable \resizebox) so every position subtable has the
+    # same row height; the 4-across 0.24\textwidth boxes hold these names at this size.
+    return ("\\begin{subtable}{0.24\\textwidth}\n\\centering\n\\scriptsize\n"
             "\\begin{tabular}{lc}\n"
-            "\\toprule\nName & Norm. Att. \\\\\n\\midrule\n" + body +
-            f"\n\\bottomrule\n\\end{{tabular}}}}\n\\caption{{{cap}}}\n\\end{{subtable}}")
+            "\\toprule\nName & Att. \\\\\n\\midrule\n" + body +
+            f"\n\\bottomrule\n\\end{{tabular}}\n\\caption{{{cap}}}\n\\end{{subtable}}")
 
 
 def _front_table(rank_top, label, caption):
