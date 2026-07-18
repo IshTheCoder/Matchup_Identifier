@@ -1,0 +1,9 @@
+% Local no-op shim for tipa.sty (the dgruyter journal class loads it, but this paper uses no
+% phonetic markup). Only needed because this build environment lacks texlive's tipa package; the
+% paper compiled with the real tipa previously. Safe to delete once tipa is installed.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{tipa}[2024/01/01 v0 local no-op shim]
+\DeclareOption*{}\ProcessOptions\relax
+\providecommand{\textipa}[1]{#1}
+\providecommand{\tipaencoding}{}
+\endinput

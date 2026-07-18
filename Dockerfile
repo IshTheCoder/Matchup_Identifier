@@ -1,0 +1,75 @@
+FROM nvcr.io/nvidia/jax:25.04-py3
+
+### Environment variables
+ENV GITHUB_CLI_VERSION 2.30.0
+
+###########################
+### SYSTEM INSTALLATION ###
+###########################
+USER root
+
+### System dependencies. Feel free to add packages as necessary.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        # Basic system usage
+        lmodern \
+        dialog \
+        file \
+        curl \
+        g++ \
+        tmux \
+        curl \
+        chromium \
+        # LaTeX for paper compilation
+        texlive-latex-base \
+        texlive-latex-extra \
+        texlive-fonts-recommended \
+        texlive-science \
+        ###################################################
+        ### Add your own system dependencies installed  ###
+        ### with `apt-get` as needed below this comment ###
+        ### Example (note the backslash after name):    ###
+        ### neofetch \                                  ###
+        ###################################################
+        && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/* /tmp/library-scripts
+
+### PyPI (pip) packages
+RUN pip install \ 
+        ################################################
+        ### Add your own PyPI dependencies installed ###
+        ### with `pip` as needed below this comment  ###
+        ### Example (note the backslash after name): ###
+        ### scikit-ntk \                             ###
+        ################################################
+        numpyro \ 
+        arviz \
+        optax \
+        shiny \
+        plotly \
+        shinywidgets \
+        Jinja2 \
+        scikit-learn \
+        kaleido \
+        geomstats \
+        ridgeplot \
+        beautifulsoup4 \
+        lxml \
+        html5lib \
+        pyarrow \
+        pykalman
+
+# RUN pip install --upgrade "jax[cuda12]"
+ENV XLA_FLAGS="--xla_cpu_multi_thread_eigen=true"
+ENV OMP_NUM_THREADS=16
+ENV MKL_NUM_THREADS=16
+
+## GitHub CLI Installation
+RUN (type -p wget >/dev/null || ( apt update &&  apt-get install wget -y)) \
+&&  mkdir -p -m 755 /etc/apt/keyrings \
+&& wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg |  tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+&&  chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" |  tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+&&  apt update \
+&&  apt install gh -y

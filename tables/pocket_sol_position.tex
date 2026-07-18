@@ -1,0 +1,16 @@
+% Lineman Space Occupation Loss by position (structural, not individual-skill).
+\begin{table}[h!]
+\centering
+\footnotesize
+\begin{tabular}{lccc}
+\toprule
+Pos & $n$ & SOL rate ($\times 10^{3}$) & PFF press.\ allowed \\
+\midrule
+C & 38 & 29.8 & 0.041 \\
+G & 80 & 33.9 & 0.061 \\
+T & 88 & 44.2 & 0.074 \\
+\bottomrule
+\end{tabular}
+\caption{Lineman pocket Space Occupation Loss (per-frame rate of value-weighted near-QB control conceded) by position. SOL grows monotonically from centers to guards to tackles and tracks pressures allowed \emph{between} positions ($+0.28$), but the within-position correlation with pressures allowed is $\approx 0$: SOL measures the positional difficulty of the assignment (tackles defend more open, contested space), not individual protection skill.}
+\label{tab:pocket_sol_position}
+\end{table}

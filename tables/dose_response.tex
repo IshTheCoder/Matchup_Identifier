@@ -1,0 +1,30 @@
+\begin{table}[h!]
+\centering
+\footnotesize
+\begin{tabular}{lccr}
+\toprule
+Attention dose & Mean STRAIN & Median STRAIN & Rusher-frames \\
+\midrule
+Singled (~1) & 0.1711 & 0.1576 & 632,492 \\
+Doubled (~2) & 0.0127 & 0.0615 & 293,868 \\
+3+ & -0.0672 & 0.0122 & 25,203 \\
+\bottomrule
+\end{tabular}
+\caption{Descriptive dose--response of pressure on attention over the Phase-2.5 frame-level
+assignments. Dose is the effective-blocker count $n_{j,t}=\sum_b\theta(b,j,t)$ on a rusher at a
+frame. More attention coincides with \emph{less} strain --- a singled rusher averages
+0.171, a doubled one 0.013 --- and the pooled slope of
+STRAIN on dose is $-0.1017$ (cluster-robust SE 0.0019, clustered by
+play). The suppressive effect of extra blockers dominates at the frame level, so unlike a season-level
+``doubles chase winners'' correlation the descriptive sign is already correct. But the magnitude is
+\emph{not} the causal effect. Part of the pooled slope is a between-rusher artifact (interior
+rushers are both doubled more and generate less strain for positional reasons); restricting to within
+a rusher (rusher fixed effect) the slope shrinks to $-0.0607$ (SE 0.0022).
+What remains is biased \emph{toward zero} by selection: a defense commits the second blocker
+precisely in the frames a rusher is threatening (a high-strain state), so the doubled frames are
+over-sampled from moments whose strain would have been high anyway, masking part of the suppression.
+The true causal effect of an added blocker is therefore \emph{more} negative than these descriptive
+slopes; recovering its unbiased magnitude would require a causal design (for instance exploiting
+stunts and twists as exogenous reallocations of attention), which we leave to future work.}
+\label{tab:dose_response}
+\end{table}

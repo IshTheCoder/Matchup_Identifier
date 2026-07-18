@@ -1,0 +1,141 @@
+\begin{thebibliography}{}
+
+\bibitem[\protect\citeauthoryear{Alamar and Goldner}{Alamar and
+  Goldner}{2011}]{AlamarGoldner2011}
+Alamar, B. and K.~Goldner (2011).
+\newblock The blindside project: Measuring the impact of individual offensive
+  linemen.
+\newblock {\em Chance\/}~{\em 24}, 25--29.
+
+\bibitem[\protect\citeauthoryear{Alamar and Weinstein-Gould}{Alamar and
+  Weinstein-Gould}{2008}]{AlamarGould2008}
+Alamar, B.~C. and J.~Weinstein-Gould (2008).
+\newblock Isolating the effect of individual linemen on the passing game in the
+  national football league.
+\newblock {\em Journal of Quantitative Analysis in Sports\/}~{\em 4\/}(2).
+
+\bibitem[\protect\citeauthoryear{Burke}{Burke}{2018}]{Burke2018Created}
+Burke, B. (2018).
+\newblock {We created better pass-rusher and pass-blocker stats: How they
+  work}.
+\newblock ESPN.com.
+\newblock [Accessed 16-May-2023].
+
+\bibitem[\protect\citeauthoryear{Callister and Rethwisch}{Callister and
+  Rethwisch}{2018}]{callister2018materials}
+Callister, W.~D. and D.~G. Rethwisch (2018).
+\newblock {\em Materials science and engineering: an introduction\/} (10 ed.).
+\newblock Hoboken, NJ: John Wiley \& Sons, Inc.
+
+\bibitem[\protect\citeauthoryear{Duckworth}{Duckworth}{}]{pykalman}
+Duckworth, D.
+\newblock pykalman 0.9.2 documentation.
+\newblock \url{https://pykalman.github.io/}.
+\newblock [Accessed 27-11-2023].
+
+\bibitem[\protect\citeauthoryear{Egami, Fong, Grimmer, Roberts, and
+  Stewart}{Egami et~al.}{2022}]{egami2022texts}
+Egami, N., C.~J. Fong, J.~Grimmer, M.~E. Roberts, and B.~M. Stewart (2022).
+\newblock How to make causal inferences using texts.
+\newblock {\em Science Advances\/}~{\em 8\/}(42), eabg2652.
+
+\bibitem[\protect\citeauthoryear{Fern{\'a}ndez and Bornn}{Fern{\'a}ndez and
+  Bornn}{2018}]{fernandez2018wide}
+Fern{\'a}ndez, J. and L.~Bornn (2018).
+\newblock Wide open spaces: A statistical technique for measuring space
+  creation in professional soccer.
+\newblock In {\em Proceedings of the 12th MIT Sloan Sports Analytics
+  Conference}.
+
+\bibitem[\protect\citeauthoryear{Fong and Grimmer}{Fong and
+  Grimmer}{2023}]{fong2023latent}
+Fong, C. and J.~Grimmer (2023).
+\newblock Causal inference with latent treatments.
+\newblock {\em American Journal of Political Science\/}~{\em 67\/}(2),
+  374--389.
+
+\bibitem[\protect\citeauthoryear{{Football Outsiders}}{{Football
+  Outsiders}}{2023}]{fo2023glossary}
+{Football Outsiders} (2023).
+\newblock {Football Outsiders Glossary}.
+\newblock footballoutsiders.com.
+\newblock [Accessed 21-May-2023].
+
+\bibitem[\protect\citeauthoryear{Franks, Miller, Bornn, and Goldsberry}{Franks
+  et~al.}{2015}]{franks2015characterizing}
+Franks, A., A.~Miller, L.~Bornn, and K.~Goldsberry (2015).
+\newblock Characterizing the spatial structure of defensive skill in
+  professional basketball.
+\newblock {\em The Annals of Applied Statistics\/}~{\em 9\/}(1).
+
+\bibitem[\protect\citeauthoryear{Howard, Blake, Patton, Lopez, Bliss, and
+  Cukierski}{Howard et~al.}{2022}]{howard2023nfl}
+Howard, A., A.~Blake, A.~Patton, M.~Lopez, T.~Bliss, and W.~Cukierski (2022).
+\newblock {NFL Big Data Bowl 2023}.
+
+\bibitem[\protect\citeauthoryear{Kabir, Hoque, Thapa, and Yang}{Kabir
+  et~al.}{2016}]{twolayerhmm}
+Kabir, M.~H., M.~R. Hoque, K.~Thapa, and S.-H. Yang (2016).
+\newblock Two-layer hidden markov model for human activity recognition in home
+  environments.
+\newblock {\em International Journal of Distributed Sensor Networks\/}~{\em
+  12\/}(1), 4560365.
+
+\bibitem[\protect\citeauthoryear{Kalman}{Kalman}{1960}]{Kalman}
+Kalman, R.~E. (1960).
+\newblock A new approach to linear filtering and prediction problems.
+\newblock {\em Transactions of the ASME--Journal of Basic Engineering\/}~{\em
+  82\/}(Series D), 35--45.
+
+\bibitem[\protect\citeauthoryear{Macdonald}{Macdonald}{2012}]{Macdonald+2012}
+Macdonald, B. (2012).
+\newblock Adjusted plus-minus for nhl players using ridge regression with
+  goals, shots, fenwick, and corsi.
+\newblock {\em Journal of Quantitative Analysis in Sports\/}~{\em 8\/}(3).
+
+\bibitem[\protect\citeauthoryear{Minka}{Minka}{2000}]{minka2000estimating}
+Minka, T.~P. (2000).
+\newblock Estimating a {Dirichlet} distribution.
+\newblock Technical report, Massachusetts Institute of Technology.
+\newblock Technical report.
+
+\bibitem[\protect\citeauthoryear{{NFL Football Operations}}{{NFL Football
+  Operations}}{2023a}]{nfl2023big}
+{NFL Football Operations} (2023a).
+\newblock {Big Data Bowl}.
+\newblock NFL.com.
+\newblock [Accessed 16-May-2023].
+
+\bibitem[\protect\citeauthoryear{{NFL Football Operations}}{{NFL Football
+  Operations}}{2023b}]{nfl2023ngs}
+{NFL Football Operations} (2023b).
+\newblock {NFL Next Gen Stats}.
+\newblock NFL.com.
+\newblock [Accessed 16-May-2023].
+
+\bibitem[\protect\citeauthoryear{Nguyen, Yurko, and Matthews}{Nguyen
+  et~al.}{2023}]{nguyen2023here}
+Nguyen, Q., R.~Yurko, and G.~J. Matthews (2023).
+\newblock {Here Comes the STRAIN: Analyzing Defensive Pass Rush in American
+  Football with Player Tracking Data}.
+\newblock {\em arXiv preprint arXiv:2305.10262\/}.
+
+\bibitem[\protect\citeauthoryear{Plummer}{Plummer}{2015}]{plummer2015cuts}
+Plummer, M. (2015).
+\newblock Cuts in bayesian graphical models.
+\newblock {\em Statistics and Computing\/}~{\em 25\/}(1), 37--43.
+
+\bibitem[\protect\citeauthoryear{Robins, Hern{\'a}n, and Brumback}{Robins
+  et~al.}{2000}]{robins2000msm}
+Robins, J.~M., M.~{\'A}. Hern{\'a}n, and B.~Brumback (2000).
+\newblock Marginal structural models and causal inference in epidemiology.
+\newblock {\em Epidemiology\/}~{\em 11\/}(5), 550--560.
+
+\bibitem[\protect\citeauthoryear{Zigler, Watts, Yeh, Wang, Coull, and
+  Dominici}{Zigler et~al.}{2013}]{zigler2013feedback}
+Zigler, C.~M., K.~Watts, R.~W. Yeh, Y.~Wang, B.~A. Coull, and F.~Dominici
+  (2013).
+\newblock Model feedback in bayesian propensity score estimation.
+\newblock {\em Biometrics\/}~{\em 69\/}(1), 263--273.
+
+\end{thebibliography}

@@ -1,0 +1,30 @@
+\begin{table}[h!]
+\centering
+\footnotesize
+\begin{tabular}{lcc}
+\toprule
+Specification & Coefficient & Cluster-robust SE \\
+\midrule
+\multicolumn{3}{l}{\emph{Outcome: the current rusher's STRAIN $y_{k,t}$}} \\
+\quad on attention to others $\sum_{j\neq k} n_{j,t}$ (no FE) & $+0.0647$ & 0.0018 \\
+\quad on attention to others (play$\times$rusher FE) & $+0.0416$ & 0.0028 \\
+\quad on attention to others, controlling own coverage (FE) & $+0.0372$ & 0.0029 \\
+\quad \emph{(own coverage $n_{k,t}$ coefficient, same joint fit)} & $-0.0535$ & 0.0034 \\
+\bottomrule
+\end{tabular}
+\caption{Descriptive spillover: the current rusher's pressure $y_{k,t}$ regressed on the attention
+the \emph{other} rushers command on the same frame, $A_{-k,t}=\sum_{j\neq k} n_{j,t}$
+($n=1,139,311$ rusher-frames, rushers with $\geq50$ snaps; SEs clustered by play). The
+play$\times$rusher fixed effect differences out the rusher's own quality and the play/scheme context,
+so identification is frame-to-frame, within-play variation in where the blocking is committed. When
+the other rushers draw more attention, the focal rusher generates more strain ($\beta_1>0$): the
+conserved-attention mechanism --- each blocker's assignment sums to one across rushers --- means
+attention spent elsewhere is attention removed from the focal rusher, who comes correspondingly
+freer. The joint fit separates this spillover from own-coverage suppression: holding the rusher's own
+coverage fixed, attention on others still raises his strain ($+0.0372$), while his own
+coverage suppresses it ($-0.0535$) --- the two faces of conserved attention, separately
+identified because the number of engaged blockers varies frame to frame. This is the ``a teammate drew
+the double, I came free'' effect made quantitative, and the descriptive counterpart of the attention
+axis in Figure~\ref{fig:rusher_2d}.}
+\label{tab:spillover}
+\end{table}
