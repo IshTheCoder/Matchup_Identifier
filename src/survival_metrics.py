@@ -129,7 +129,7 @@ def _km_table(fp, by, players, name_col):
     return df[df.n_blocks >= MIN_PLAYS].reset_index(drop=True)
 
 
-def run(assignment_path="assignment_data.csv"):
+def run(assignment_path="assignment_data_phase25.csv"):
     players = pd.read_csv("data/players.csv").set_index("nflId")
     print("reducing assignments ...", flush=True)
     bf = per_blocker_frame(assignment_path)

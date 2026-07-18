@@ -1,4 +1,7 @@
 """Cross-phase comparison of the play-level plus-minus effects + survival summary."""
+import os
+os.environ.setdefault("JAX_PLATFORMS", "cpu")   # play_model_samples.pkl holds jax arrays; unpickling them
+                                                # must not touch the (CPU-only) analysis's cuda backend
 import pickle, numpy as np, pandas as pd
 from scipy.stats import spearmanr
 import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
@@ -41,6 +44,28 @@ for tag in PH:
                  "blk_p95_abs": round(rb[tag].abs().quantile(.95),3)})
 comp = pd.DataFrame(rows); comp.to_csv("phase_comparison.csv", index=False)
 print(comp.to_string(index=False))
+
+# tables/phase_comparison.tex — the exact table the paper \input's, generated from `comp`.
+import os
+os.makedirs("tables", exist_ok=True)
+ROW_LABEL = {"0 (raw)": "Raw", "1 ($\\rho_j$)": "$+$ per-player stickiness",
+             "2 (null)": "$+$ null state", "2.5 (struct null)": "$+$ structured null"}
+with open("tables/phase_comparison.tex", "w") as f:
+    f.write("\\begin{table}[h!]\n\\centering\n\\footnotesize\n")
+    f.write("\\begin{tabular}{lcccccc}\n\\toprule\n")
+    f.write("Assignments & $\\sigma$ & blk $\\rho_S$ & rush $\\rho_S$ & QB $\\rho_S$ "
+            "& blk mean$|e|$ & blk p95$|e|$ \\\\\n\\midrule\n")
+    for _, r in comp.iterrows():
+        lab = ROW_LABEL.get(r["phase"], r["phase"])
+        f.write(f"{lab} & {r.sigma:.3f} & {r.blk_rho_vs_raw:.3f} & {r.rush_rho_vs_raw:.3f} "
+                f"& {r.qb_rho_vs_raw:.3f} & {r.blk_mean_abs:.3f} & {r.blk_p95_abs:.3f} \\\\\n")
+    f.write("\\bottomrule\n\\end{tabular}\n")
+    f.write("\\caption{Play-level plus-minus across assignment refinements: residual $\\sigma$, "
+            "Spearman rank-correlation of effects vs.\\ the raw-assignment fit ($\\rho_S$), and "
+            "blocker effect magnitude. Rankings are highly preserved while null de-biasing sharpens "
+            "blocker effects.}\n")
+    f.write("\\label{tab:phase_comparison}\n\\end{table}\n")
+print("wrote tables/phase_comparison.tex")
 
 # figure: blocker effect raw vs phase2.5 (rank preserved, magnitude sharpened)
 b = pd.concat([rb["0 (raw)"], rb["2.5 (struct null)"]], axis=1, join="inner"); b.columns=["raw","p25"]

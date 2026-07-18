@@ -1,7 +1,11 @@
 """Matchup block-failure survival model (BlockFailureHazardModel). Fits an exponential frailty hazard
 to the null-state 'beaten' spells (block_failure_events.csv) with crossed blocker (hold) + rusher
 (shed) random effects, so each side is OPPONENT-ADJUSTED. Outputs opponent-adjusted hold/shed
-ratings, matchup expected hold-times, and validates vs PFF. Usage: python3 run_block_survival_model.py"""
+ratings, matchup expected hold-times, and validates vs PFF.
+Usage: python3 run_block_survival_model.py [mcmc]   # 'mcmc' -> NUTS (paper-faithful); default SVI (fast)."""
+import os
+os.environ.setdefault("JAX_PLATFORMS", "cpu")   # match the other fit drivers: skip the container's
+                                                # broken cuda jax-plugin and fit on CPU (override with JAX_PLATFORMS=cuda)
 import sys, pickle
 import numpy as np, pandas as pd
 from scipy.stats import pearsonr, spearmanr
@@ -23,7 +27,13 @@ print(f"spells={len(ev):,}  beaten={int(ev.event.sum()):,} ({ev.event.mean():.1%
       f"blockers={len(benc)} rushers={len(renc)}  base hazard={base:.3f}/s (mean hold {1/base:.1f}s)", flush=True)
 
 m = BlockFailureHazardModel()
-s = m.run_svi_inference(data, num_steps=15000, lr=5e-3)
+USE_MCMC = "mcmc" in sys.argv
+if USE_MCMC:
+    print("inference: MCMC (NUTS, 1 chain, 1000/1000, target_accept=0.9)", flush=True)
+    s = m.run_mcmc_inference(data, num_warmup=1000, num_samples=1000, num_chains=1)
+else:
+    print("inference: SVI (AutoNormal, 15000 steps)", flush=True)
+    s = m.run_svi_inference(data, num_steps=15000, lr=5e-3)
 pickle.dump(s, open("block_survival_samples.pkl", "wb"))
 al = s["alpha"]; ud = s["sigma_b"][:, None] * s["z_blocker"]; vd = s["sigma_r"][:, None] * s["z_rusher"]
 print(f"  alpha={al.mean():+.3f}  sigma_b={s['sigma_b'].mean():.3f}  sigma_r={s['sigma_r'].mean():.3f}", flush=True)

@@ -18,7 +18,7 @@ players = pd.read_csv("data/players.csv").set_index("nflId")
 pos, name = players["officialPosition"], players["displayName"]
 
 print("loading assignment_data ...", flush=True)
-ad = pd.read_csv("assignment_data.csv")
+ad = pd.read_csv("assignment_data_phase25.csv")
 ad["front"] = ad.groupby(["gameId", "playId"])["nflId_pr"].transform("nunique")  # N-man front
 
 # ---------------------------------------------------------------- attention --

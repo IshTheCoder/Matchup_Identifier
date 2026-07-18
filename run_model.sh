@@ -4,7 +4,7 @@ set -euo pipefail
 # ──────────────────────────────────────────────────────────────────────────────
 # Full pipeline:
 #   1. run HMM            (fit emission + structured-null transition, phase 2.5)
-#   2. export HMM params  (produce assignment_data.csv — what the models consume)
+#   2. export HMM params  (produce assignment_data_phase25.csv — what the models consume)
 #   3. run {model}        (model-specific fit driver)
 #   4. export model params(parquet under model_outputs/ for cross-language access)
 #   5. produce tables     (model-specific .tex)
@@ -22,6 +22,10 @@ EXEC="docker exec -w $CONTAINER_WORKDIR"
 
 GPU_ID="${GPU_ID:-0}"               # GPU the fits run on (override: GPU_ID=1 ./run_model.sh ...)
 SKIP_HMM="${SKIP_HMM:-0}"           # 1 → reuse existing assignments, skip steps 1–2 (HMM is shared/expensive)
+# jax backend for the GPU-container fits. Default 'cuda' (the cuda12 plugin is aligned to jaxlib 0.10.1);
+# this is passed through so it OVERRIDES each driver's `setdefault("JAX_PLATFORMS","cpu")` standalone
+# default. Force CPU for the whole run with: JAX_PLATFORMS=cpu ./run_model.sh <model>
+JAX_PLATFORMS="${JAX_PLATFORMS:-cuda}"
 
 # ── Fixed HMM stage (steps 1–2) ───────────────────────────────────────────────
 # run HMM: phase-1 hierarchical emission fit → phase-2.5 structured-null transition fit
@@ -29,9 +33,12 @@ HMM_RUN=(
     "scripts/hmm/run_phase1_hmm.py"
     "scripts/hmm/run_phase25_fit.py"
 )
-# export HMM params: regenerate assignment_data.csv from the phase-2.5 params
+# export HMM params: regenerate the assignments from the phase-2.5 params, then the
+# HMM-level tables that every downstream model shares.
 HMM_EXPORT=(
-    "scripts/hmm/run_phase25_assignments.py"
+    "scripts/hmm/run_phase25_assignments.py"   # -> assignment_data_phase25.csv (smoothed posterior; the canonical production assignments)
+    "scripts/hmm/run_phase25_filtered.py"      # -> assignment_data_phase25_filtered.csv (causal/forward-only; the continuous dose model needs this)
+    "scripts/hmm/make_tables_figures.py"       # attention_rankings.tex, blocker_entropy.tex (+ tau figure) from assignment_data_phase25.csv
 )
 
 # ── Shared model-params export (step 4) ───────────────────────────────────────
@@ -50,10 +57,14 @@ select_model() {
         playpm)   # play-level (phase 2.5) STRAIN plus-minus: rusher / blocker / QB effects
             RUN=(
                 "scripts/plusminus/run_phase_play_model.py phase25 assignment_data_phase25.csv"
+                # continuous-time dose model (Sec. 4.5) on the causal FILTERED assignments;
+                # writes blocker_dose_rankings_filtered_baseline_mcmc.csv (consumed by compare_blocker_metrics)
+                "scripts/plusminus/run_blocker_dose_model.py assignment_data_phase25_filtered.csv baseline mcmc"
             )
             TABLES=(
-                "scripts/plusminus/regenerate_rankings.py"
-                "scripts/plusminus/realized_impedance.py"
+                "scripts/plusminus/regenerate_rankings.py"        # rusher/blocker plusminus (+ _bot), qb_suppression
+                "scripts/plusminus/realized_impedance.py"         # blocker_value.tex (+ blocker_value.csv)
+                "scripts/plusminus/compare_blocker_metrics.py"    # blocker_continuous_vs_play.tex, blocker_delta_leaders.tex
             )
             FIGS_PY=(
                 "scripts/plusminus/rusher_2d.py"        # writes rusher_2d.csv (input to make_figures.R)
@@ -64,10 +75,11 @@ select_model() {
             ;;
         shedding) # opponent-adjusted block-failure survival (hold / shed ratings)
             RUN=(
-                "scripts/shedding/run_block_survival_model.py"
+                "src/survival_metrics.py"                     # block_engagement.tex, rusher_shedding.tex (KM engagement/shed)
+                "scripts/shedding/run_block_survival_model.py mcmc"   # opponent-adjusted hold/shed frailty via NUTS (paper-faithful)
             )
             TABLES=(
-                "scripts/shedding/block_hold_tables.py"
+                "scripts/shedding/block_hold_tables.py"       # block_hold.tex (opponent-adjusted hold rating)
             )
             FIGS_PY=()
             FIGS_R=()
@@ -109,9 +121,30 @@ select_model() {
             FIGS_PY=()
             FIGS_R=()
             ;;
+        robustness) # appendix robustness sweep: refit the play model across assignment phases,
+                    # then compare. STEP 3 is handled specially (see run_phase_sweep) so it can
+                    # capture each phase's stdout to phase_play_<phase>.log for compare_phases.py.
+                    # Requires the per-phase assignment files (assignment_data_phase{0,1,2,25}.csv)
+                    # and the committed phase-0 baseline (phase0_results/, play_model_samples.pkl).
+            RUN=()                                            # STEP 3 uses run_phase_sweep, not RUN
+            TABLES=(
+                "scripts/hmm/compare_phases.py"               # phase_comparison.tex (+ .csv + figure)
+            )
+            FIGS_PY=()
+            FIGS_R=()
+            ;;
+        validate) # appendix external validation vs PFF charting (no model fit of its own)
+                  # Run after playpm + shedding so the ranking/survival CSVs it reads are present.
+            RUN=()
+            TABLES=(
+                "scripts/validation/validate_pff.py"          # pff_validation.tex (+ printed correlations/agreement)
+            )
+            FIGS_PY=()
+            FIGS_R=()
+            ;;
         *)
             echo "ERROR: unknown model '$1'." >&2
-            echo "Known models: playpm shedding pocket openness qbforce" >&2
+            echo "Known models: playpm shedding pocket openness qbforce robustness validate" >&2
             return 1
             ;;
     esac
@@ -125,14 +158,14 @@ select_model() {
 #   SKIP_HMM=1 ./run_model.sh playpm   # reuse existing assignments
 #   GPU_ID=1  ./run_model.sh pocket
 if [[ "${1:-}" == "--list" ]]; then
-    echo "Known models: playpm shedding pocket openness qbforce"
+    echo "Known models: playpm shedding pocket openness qbforce robustness validate"
     exit 0
 fi
 
 if [[ $# -ge 1 ]]; then
     MODEL="$1"
 else
-    echo "Model to run (playpm | shedding | pocket | openness | qbforce):"
+    echo "Model to run (playpm | shedding | pocket | openness | qbforce | robustness | validate):"
     read -rp "? " MODEL
 fi
 [[ -z "${MODEL:-}" ]] && { echo "No model given — exiting."; exit 1; }
@@ -142,6 +175,7 @@ select_model "$MODEL"
 echo ""
 echo "Model    : $MODEL"
 echo "GPU      : $GPU_ID  (container '$CTR_GPU')"
+echo "JAX      : $JAX_PLATFORMS  (fit backend; force CPU with JAX_PLATFORMS=cpu ./run_model.sh ...)"
 echo "R figures: container '$CTR_R'"
 echo "HMM      : $([[ $SKIP_HMM == 1 ]] && echo 'SKIPPED (reusing assignments)' || echo 'run + export')"
 echo ""
@@ -166,11 +200,27 @@ run_stage() {
     for cmd in "$@"; do
         echo "  [$ctr] $interp $cmd"
         if [[ "$interp" == "python3" ]]; then
-            # word-split the command (script path + its args); CUDA pinned for the GPU container
-            $EXEC -e "CUDA_VISIBLE_DEVICES=$GPU_ID" "$ctr" python3 $cmd
+            # word-split the command (script path + its args); CUDA + jax backend pinned for the GPU container
+            $EXEC -e "CUDA_VISIBLE_DEVICES=$GPU_ID" -e "JAX_PLATFORMS=$JAX_PLATFORMS" "$ctr" python3 $cmd
         else
             $EXEC "$ctr" $interp $cmd
         fi
+    done
+}
+
+# ── Robustness phase sweep (STEP 3 for the 'robustness' model) ─────────────────
+# Refit the play-level model on each refinement phase's assignments, teeing each run's
+# stdout (in-container, so it lands in $CONTAINER_WORKDIR) to phase_play_<phase>.log —
+# compare_phases.py parses sigma from those logs. Phase 0 (raw) is the committed baseline
+# in phase0_results/ and is not refit here.
+run_phase_sweep() {
+    echo "=== [$(date '+%H:%M:%S')] STEP 3: play-model phase sweep (robustness) ==="
+    local phase asg
+    for phase in phase1 phase2 phase25; do
+        asg="assignment_data_${phase}.csv"
+        echo "  [$CTR_GPU] python3 scripts/plusminus/run_phase_play_model.py $phase $asg  (-> phase_play_${phase}.log)"
+        $EXEC -e "CUDA_VISIBLE_DEVICES=$GPU_ID" -e "JAX_PLATFORMS=$JAX_PLATFORMS" "$CTR_GPU" bash -c \
+            "set -o pipefail; python3 scripts/plusminus/run_phase_play_model.py $phase $asg 2>&1 | tee phase_play_${phase}.log"
     done
 }
 
@@ -182,8 +232,20 @@ else
     echo "=== STEP 1–2: HMM skipped (SKIP_HMM=1) ==="
 fi
 
-run_stage "STEP 3: run model '$MODEL'"    "$CTR_GPU" python3 "${RUN[@]}"
-run_stage "STEP 4: export model params"   "$CTR_GPU" python3 "$MODEL_EXPORT"
+if [[ "$MODEL" == robustness ]]; then
+    run_phase_sweep
+else
+    run_stage "STEP 3: run model '$MODEL'" "$CTR_GPU" python3 "${RUN[@]}"
+fi
+
+# STEP 4 re-exports the fitted-effect parquet from the play/dose pickles. The analysis-only
+# models (robustness, validate) fit nothing new, so skip it for them.
+if [[ "$MODEL" == robustness || "$MODEL" == validate ]]; then
+    echo "  (STEP 4: export model params — skipped for analysis-only model '$MODEL')"
+else
+    run_stage "STEP 4: export model params" "$CTR_GPU" python3 "$MODEL_EXPORT"
+fi
+
 run_stage "STEP 5: produce tables"        "$CTR_GPU" python3 "${TABLES[@]}"
 run_stage "STEP 6a: produce figures (py)" "$CTR_GPU" python3 "${FIGS_PY[@]}"
 run_stage "STEP 6b: produce figures (R)"  "$CTR_R"   Rscript  "${FIGS_R[@]}"
