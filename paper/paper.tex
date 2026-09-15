@@ -148,23 +148,23 @@ so that a rusher's strain is large precisely when he is both close to the quarte
 
 In order to determine responsibility of an offensive lineman for a specific rusher, one must determine at each time point, which offensive lineman is ``assigned'' to which rusher.  A similar ``matching'' problem is solved in \cite{franks2015characterizing}, where the authors seek to assign a defensive player to an offensive player at each time point of a professional basketball game, using a HMM.  We modify the approach to account for differences between American football and basketball.
 
+In the HMM literature, the conditional distribution of the observables given the latent state is called the 'emission distribution'. The latent state, or what is unobservable, is what we aim to infer from the observables. In our case, these are the pass-blocking assignments. Finally, in the HMM literature, the 'transition probability' is the probability of switching latent states between time-steps. In our case, this reflects the likelihood that a pass-blocker will switch assignments. 
+
+Because blocking technique and responsibility differ markedly across offensive positions, the model is fit independently for each blocking position group $g \in \{\text{G},\text{T},\text{C},\text{TE},\text{RB},\text{WR},\text{FB}\}$. We write $g(b)$ for the position group of blocker $b$ and mark every group-specific parameter with the superscript $(g)$. 
+
 \subsubsection{Emission Distribution}
 % One such modification is the formulation of the conditional distribution of pass-blocker position, given the blocking assignment. 
 
-Let $I_{tbj}$ be an indicator variable equal to $1$ if blocker $b$ is assigned to rusher $j$ at frame $t$. Because blocking technique and responsibility differ markedly across offensive positions, the model is fit \emph{independently} for each blocking position group $g \in \{\text{G},\text{T},\text{C},\text{TE},\text{RB},\text{WR},\text{FB}\}$. We write $g(b)$ for the position group of blocker $b$ and mark every group-specific parameter with the superscript $(g)$. 
 
 
-In football, we simply assume that the pass-blocker maintain their position such that they are between their pass-rusher assignment and their quarterback. Let $R_{tj}$ denote the location of rusher $j$ and $Q_t$ the quarterback position, and define $O_{tb}$ as the location of blocker $b$ at time $t$.  Then, we posit a model for $O_{tb}$ given that they are matched up against rusher $j$ as
+
+
+In football, we simply assume that the pass-blocker maintain their position such that they are between their pass-rusher assignment and their quarterback. Let $R_{tj}$ denote the location of rusher $j$ and $Q_t$ the quarterback position, and define $O_{tb}$ as the location of blocker $b$ at time $t$. Let $I_{tbj}$ be an indicator variable equal to $1$ if blocker $b$ is assigned to rusher $j$ at frame $t$. Then, we posit a model for $O_{tb}$ given that they are matched up against rusher $j$ as
 \begin{align}
 \mu^{(g)}_{tj} &= \gamma^{(g)}_r R_{tj} + \gamma^{(g)}_q Q_t\\
-O_{tb} | I_{tbj} = 1 &\sim \mathcal{N}\big(\mu^{(g(b))}_{tj}, \sigma^{2(g(b))}_D\big)
+O_{tb} | I_{tbj} = 1 &\sim \mathcal{N}\big(\mu^{(g(b))}_{tj}, \sigma^{2(g(b))}\big)
 \end{align}
 so that a tackle, a guard, and a running back each carry their own emission weights and their own positional variance.
-
-Furthermore, pass rushers and pass blockers usually operate in close quarters; this suggests that the variance $\sigma^{2(g)}_D$ should not be too large. To account for this, we specify an Inverse Gamma prior on this variance, with hyperparameters shared across groups, such that
-$$ \sigma^{2(g)}_D \sim IG(\alpha, \beta), \qquad E\big[\sigma^{2(g)}_D\big] = \frac{1}{4}. $$
-This suggests that we wish the standard deviation from the expected position to be within half a yard in both directions. 
-
 
 
  % The NFL player tracking data includes the orientation of  all players at time $t$. 
@@ -295,7 +295,7 @@ For each play, blocker we take the time from the snap to the first beat as a sur
 \input{../tables/block_engagement.tex}
 \input{../tables/rusher_shedding.tex}
 
-\paragraph{Opponent-Adjusted Pass-Block Beat Rate} The beat rate above, like every blocker metric in this paper, is confounded by alignment. This results in elite tackles, who draw the best edge rushers, being penalized unfairly. To combat this, we model the per-frame block-failure hazard directly as a discrete-time logistic survival on the beaten events,
+\paragraph{Opponent-Adjusted Pass-Block Beat Rate} The beat rate above is confounded by alignment. This results in elite tackles, who draw the best edge rushers, being penalized unfairly. To combat this, we model the per-frame block-failure hazard directly as a discrete-time logistic survival on the beaten events,
 $$ \operatorname{logit} h_{b,t} = \alpha + g_1\,\tilde t + g_2\,\tilde t^{2} + \beta_{\text{opp}}\,R_{j(b)} + u_b, $$
 where $\tilde t$ is (standardized) frames since engagement, $R_{j}$ is the engaged rusher's STRAIN plus-minus (the rusher effect developed in Section~\ref{plusminus}) entered as a fixed opponent-quality covariate, and $u_b$ is a regularized per-blocker hold frailty. The dwell coefficient is positive ($g_1 > 0$) suggesting that blocks fail more readily the longer they are asked to last. The opponent coefficient is positive too ($\beta_{\text{opp}} > 0$), confirming that facing a better rusher raises the failure hazard. The resulting hold rating $-u_b$ (now adjusted for opponent quality) lifts Trent Williams to the top of the tackle ranking (Table~\ref{tab:block_hold}). The implied per-play beat probabilities run from $\sim\!4\%$ for the best protectors to $\sim\!20\%$ for the most-beaten, rising a point or two against an elite edge rusher.
 
