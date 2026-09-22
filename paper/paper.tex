@@ -123,7 +123,7 @@ In Section \ref{sec:methods}, we  provide an overview of our methodology and pre
 We use the player tracking data provided by the 2023 NFL Big Data Bowl  \citep{howard2023nfl} in the analysis that follows.
 This is tracked by the NFL's Next Gen Stats system \citep{nfl2023ngs}, which returns the spatial coordinates of all players on the field and the football at a frequency of 10 Hz (i.e., 10 frames per second).
 The data also includes  player speed, acceleration, and event annotations associated with each time frame within a play.  Event annotations include time-stamped demarcations of actions that occurred during the play including  ball snap, quarterback throw, run, sack, etc.
-In total, 698 distinct pass rushers and 534 distinct pass blockers (offensive linemen/backs/TEs in blocking roles) are analyzed, across 8,531 plays in the first eight weeks of the 2021 season. Throughout the paper, we index quantities by play $i$, pass rusher $j$, pass blocker $b$, and frame (time step) $t$, with frames sampled at $10$\,Hz. In order to assess offensive lineman and pass rushers, we limit our analysis to the individuals tagged by Pro Football Focus (an independent NFL contractor providing additional data augmentation that relies on domain knowledge annotators) with a ``Pass Block'' or ``Pass Rush'' role. Furthermore, we focus on the time-frames between the snap and the quarterback event (pass attempt, run attempt, sack), again using the annotated event annotation to filter our data. Before beginning our analysis, we smooth the raw positional data using a Kalman filter, the details of which are located in Appendix \ref{sec:kalman_filter}. 
+In total, 698 distinct pass rushers and 534 distinct pass blockers (offensive linemen/backs/TEs in blocking roles) are analyzed, across 8,531 plays in the first eight weeks of the 2021 season. Appendix~\ref{sec:positions} describes the offensive position groups these blockers are drawn from and how much each of them actually blocks on a pass play. Throughout the paper, we index quantities by play $i$, pass rusher $j$, pass blocker $b$, and frame (time step) $t$, with frames sampled at $10$\,Hz. In order to assess offensive lineman and pass rushers, we limit our analysis to the individuals tagged by Pro Football Focus (an independent NFL contractor providing additional data augmentation that relies on domain knowledge annotators) with a ``Pass Block'' or ``Pass Rush'' role. Furthermore, we focus on the time-frames between the snap and the quarterback event (pass attempt, run attempt, sack), again using the annotated event annotation to filter our data. Before beginning our analysis, we smooth the raw positional data using a Kalman filter, the details of which are located in Appendix \ref{sec:kalman_filter}. 
 
 
 % From these smoothed coordinates we derive one further quantity, STRAIN (Section~\ref{sec:strain}), an established frame-level measure of pass-rush pressure.
@@ -143,7 +143,7 @@ as a per-frame measure of each rusher's pressure on the quarterback, so that a r
 
 
 
-\section{A Hidden Markov Model (HMM) for Pass Blocking}
+\section{A Hidden Markov Model (HMM) for Pass Blocking} \label{methods}
 \label{sec:methods}
 
 In order to determine responsibility of an offensive lineman for a specific rusher, one must determine at each time point, which offensive lineman is ``assigned'' to which rusher.  A similar ``matching'' problem is solved in \cite{franks2015characterizing}, where the authors seek to assign a defensive player to an offensive player at each time point of a professional basketball game using a HMM.  We modify the approach to account for differences between American football and basketball.
@@ -169,7 +169,7 @@ where $I_0$ is the modified Bessel function of the first kind of order zero. The
 
 \subsection{Modeling Switches}
 In American football, offensive lineman may "pass off" rushers to their teammates, which results in a switch in assignment during the course of the play. Lineman may also "stunt" (feint as if they are going towards a rusher, then recover back to their original assignment), which also constitutes a change in assignment. Our model must encode this frame to frame transition, or "stickiness" of a blocker to his assignment.
- We let $n_i$ denote the number of pass rushers on play $i$, and we fit a separate  $\rho^{(g)}$ for each blocking position group:
+ We let $n_i$ denote the number of pass rushers on play $i$, and we fit a separate  $\rho^{(g)}$ for each blocking position group $g$ (Appendix~\ref{sec:positions}):
 $$ P(I_{tbj} = 1 | I_{(t-1)bj} = 1) = \rho^{(g(b))}, $$
 $$ P(I_{tbj} = 1 | I_{(t-1)bj^{'}} = 1) = \frac{1 - \rho^{(g(b))}}{n_i -1},  \quad  \text{ for } j \neq j^{'}$$
 Each $\rho^{(g)}$ is estimated by maximum likelihood within the EM algorithm, where it reduces to the expected fraction of retained assignments; the derivation is given in Appendix~\ref{sec:inference}.
@@ -218,7 +218,7 @@ The transition parameter, $\rho$,  is very high for linemen and tight ends ($\rh
 \subsubsection{Rusher Attention and Blocker Entropy}
 \label{sec:attention}
 
-In this Section we describe simple metrics derived from the results of the Hidden Markov Model.  First, we derive a metric which quantifies the effective number of blockers a rusher faces at a given instant.  Specifically, we define ``attention'' as the sum of the assignment probabilities assigned to a rusher at a given time-step, $n_{\text{eff}}(j,t)=\sum_b \theta(b,j,t)$. Aggregated over a play or a season, it is the number of ``effective'' blockers a rusher faces over that time period. Because the number of effective blockers depends partly on the blocking scheme a defense faces, we normalize each rusher's attention within every play-frame relative to the average rusher on the field such that the resulting figures are comparable across three-, four-, and five-man fronts. Tables \ref{tab:att_top_norm} and \ref{tab:att_bot_norm} report the rushers who draw the most and least front-normalized attention by position, which highlights which players are most influential in collapsing or imbalancing the offensive line.
+In this Section we describe simple metrics derived from the results of the Hidden Markov Model.  First, we derive a metric which quantifies the effective number of blockers a rusher faces at a given instant.  Specifically, we define ``attention'' as the sum of the assignment probabilities assigned to a rusher at a given time-step, $n_{\text{eff}}(j,t)=\sum_b \theta(b,j,t)$. Aggregated over a play or a season, it is the number of ``effective'' blockers a rusher faces over that time period. Because the number of effective blockers depends partly on the blocking scheme a defense faces, we normalize each rusher's attention within every play-frame relative to the average rusher on the field such that the resulting figures are comparable across three-, four-, and five-man fronts. Table~\ref{tab:att_top_norm} reports the rushers who draw the most front-normalized attention by position, which highlights which players are most influential in collapsing or imbalancing the offensive line; the five who draw the least by position can be found in Appendix Table~\ref{tab:att_bot_norm}.
 
 
 \input{../tables/attention_rankings.tex}
@@ -370,7 +370,18 @@ Although our methods are promising, there is certainly room for improvement. Fir
 
 \clearpage
 \begin{appendices}
-\section*{Smoothing Positional Data}
+\section{Offensive Position Groups}
+\label{sec:positions}
+Our models are fit separately for each of the seven offensive position groups that appear in a blocking role: guard (G), tackle (T), center (C), tight end (TE), running back (RB), wide receiver (WR), and fullback (FB). These groups differ both in how often they block on a pass play and how they block.
+
+The offensive linemen (tackles, guards, and centers) are the primary pass blockers. They line up on the line of scrimmage on every snap and block on essentially every dropback. The center and the guards form the interior of the line and typically engage interior rushers, who attack on the short, direct path to the quarterback. The two tackles align at the outside edges of the line and usually handle edge rushers, who take the widest and longest path to the quarterback.
+
+Tight ends occupy an intermediate role. A tight end may align at the end of the line or in the backfield, and on a given pass play he may either stay in to block or release into a route as a receiver. 
+
+Running backs, wide receivers, and fullbacks are primarily receivers on pass plays. They do block on occasion. A running back or fullback may stay in to protect the quarterback, chip an edge rusher on his way into a route, or pick up an unblocked blitzing defender, and in maximum-protection schemes additional players are kept in to block. However, on most dropbacks these players release downfield rather than engage a rusher.
+
+
+\section{Smoothing Positional Data}
 \label{sec:kalman_filter}
 Before beginning our analysis using raw (x,y) tracking data, we smooth the observations. It is known that RFID sensors are noisy, and thus analysis of raw values are subject to error. More importantly, since our analysis heavily utilizes numerical differentiation techniques which rely on smooth function assumptions, de-noising the presented data is of significant importance.  In order to achieve this, we apply a Kalman filter to the positional data, using the reported velocity and acceleration only to initialize the latent state, as described below.
 
@@ -400,7 +411,7 @@ We set the process spectral density $q = 1~\text{yd}^2/\text{s}^5$ and the obser
 
 
 
-\section*{HMM Parameter Estimation}
+\section{HMM Parameter Estimation}
 \subsection{Model Formulation}
 We model the evolution of pass blocking assignments (as given by the matrix of
 matchups, $I_i$) over the course of a play $i$ using a hidden Markov model. Because the model is fit independently for each blocking position group, the derivation below describes a single group and we suppress the group superscript $(g)$ throughout this appendix, reserving the superscript $(s)$ for the EM iteration. Every parameter estimated here is understood to be that group's own.
@@ -494,7 +505,7 @@ and the disengaged persistence is the pooled fraction, $\hat{\rho}_{\text{null}}
 % \input{../tables/phase_comparison.tex}
 
 \FloatBarrier
-\section*{External Validation against PFF Charting} \label{pffvalid}
+\section{External Validation against PFF Charting} \label{pffvalid}
 Our assignments and metrics are derived purely from tracking geometry and STRAIN, so the independently hand-charted pass-block / pass-rush data from Pro Football Focus provides an external check.
 
 First, the HMM assignments recover the charted blocker responsibilities. PFF tags, for each play and blocker, the single rusher that blocker was responsible for. Over the $44{,}037$ charted blocker-plays we are able to match, our smoothed assignment places a mean of $0.77$ of its engaged probability mass on exactly that rusher and the model's most-assigned rusher agrees with PFF's designation on $87.5\%$ of blocker-plays. 
@@ -505,13 +516,16 @@ Second, the block-shedding survival rates (Section~\ref{shedding}) and the plus-
 \input{../tables/blocker_continuous_vs_play.tex}
 
 \FloatBarrier
-\section*{Supplementary Tables}
+\section{Supplementary Tables}
 These supplementary tables illustrate the variety of metric rankings derived from our models.
+\subsection{Attention Metrics}
+
+\input{../tables/attention_rankings_bot.tex}
+
 \subsection{Disengagement Metrics}
 
 \input{../tables/block_hold.tex}
-\input{../tables/block_engagement.tex}
-\input{../tables/rusher_shedding.tex}
+\input{../tables/beat_rates.tex}
 
 
 
@@ -530,7 +544,7 @@ Because the quarterback intercept $Q_{q_i}$ also enters the peak-strain predicto
 
 
 \subsection{Pocket Space Control Metrics}
-The pocket space-control tables of Sections~\ref{pocketspace} and~\ref{spacegen} follow: the per-rusher space-won ranking and the assignment-weighted space-generation-gain table.
+The pocket space-control tables of Section~\ref{pocketspace} follow: the per-rusher space-won ranking and the assignment-weighted space-generation-gain table.
 
 \input{../tables/pocket_rusher_space.tex}
 
