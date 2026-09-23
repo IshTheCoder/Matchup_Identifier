@@ -270,7 +270,12 @@ We also are able to rank quarterbacks by their STRAIN allowed, as evidenced by \
 \input{../tables/rusher_plusminus.tex}
 
 
-To represent a blocker's realized value we report his realized impedance. This quantity represents the strain he actually removes per snap, $\overline{B_b \sum_j \theta(b,j)}$ normalized within each play relative to the other blockers on the field, so it is comparable across three-, four-, and five-man fronts (Table~\ref{tab:blocker_value}). This sharpens the ranking toward consensus elite protectors (Tristan Wirfs and Andrew Thomas at tackle, Quenton Nelson at guard, Rodney Hudson and Alex Mack at center) and  demotes players who rarely pass-block.
+The coefficient $B_b$ is the strain a blocker suppresses per unit of assignment he is given. To represent a blocker's realized value we therefore weight the coefficient by the blocking he actually performs. Writing $\bar\theta(b,j,i)$ for blocker $b$'s assignment to rusher $j$ averaged over the frames of play $i$, his engagement on that play is the assignment mass he places on rushers, $e_{b,i} = \sum_{j} \bar\theta(b,j,i) = 1 - \bar\theta_{\text{null}}(b,i) $. The strain he removes on play $i$ is then $B_b\,e_{b,i}$, and his realized impedance averages this over the set $\mathcal{P}_b$ of plays on which he blocks, while the front-normalized impedance additionally subtracts, on each play, the mean impedance of the blockers $\mathcal{B}_i$ on the field for that snap:
+\begin{align}
+\mathrm{Imp}_b &= \frac{1}{|\mathcal{P}_b|}\sum_{i \in \mathcal{P}_b} B_b\, e_{b,i} \;=\; B_b\,\bar e_b, \label{eq:imp} \\
+\mathrm{FN}_b &= \frac{1}{|\mathcal{P}_b|}\sum_{i \in \mathcal{P}_b}\Big( B_b\,e_{b,i} - \frac{1}{|\mathcal{B}_i|}\sum_{b' \in \mathcal{B}_i} B_{b'}\,e_{b',i} \Big). \label{eq:fn}
+\end{align}
+Realized impedance is the coefficient scaled by the blocker's mean engagement rate $\bar e_b$. Because $\mathrm{FN}_b$ takes the blockers on that particular snap as its reference group, it is comparable across three-, four-, and five-man fronts and across protections that keep differing numbers of players in. It is centered near zero by construction and measures how much more strain a blocker removes than his blocking teammates on the same play. Ranking by $\mathrm{FN}_b$ sharpens the ranking toward consensus elite protectors (Tristan Wirfs and Andrew Thomas at tackle, Quenton Nelson at guard, Rodney Hudson and Alex Mack at center) and demotes players who rarely pass-block.
 
 \input{../tables/blocker_value.tex}
 
