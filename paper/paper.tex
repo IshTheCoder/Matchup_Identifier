@@ -218,7 +218,7 @@ The transition parameter, $\rho$,  is very high for linemen and tight ends ($\rh
 \subsubsection{Rusher Attention and Blocker Entropy}
 \label{sec:attention}
 
-In this Section we describe simple metrics derived from the results of the Hidden Markov Model.  First, we derive a metric which quantifies the effective number of blockers a rusher faces at a given instant.  Specifically, we define ``attention'' as the sum of the assignment probabilities assigned to a rusher at a given time-step, $n_{\text{eff}}(j,t)=\sum_b \theta(b,j,t)$. Aggregated over a play or a season, it is the number of ``effective'' blockers a rusher faces over that time period. Because the number of effective blockers depends partly on the blocking scheme a defense faces, we normalize each rusher's attention within every play-frame relative to the average rusher on the field such that the resulting figures are comparable across three-, four-, and five-man fronts. Table~\ref{tab:att_top_norm} reports the rushers who draw the most front-normalized attention by position, which highlights which players are most influential in collapsing or imbalancing the offensive line; the five who draw the least by position can be found in Appendix Table~\ref{tab:att_bot_norm}.
+In this Section we describe simple metrics derived from the results of the Hidden Markov Model.  First, we derive a metric which quantifies the effective number of blockers a rusher faces at a given instant.  Specifically, we define ``attention'' as the sum of the assignment probabilities assigned to a rusher at a given time-step, $n_{\text{eff}}(j,t)=\sum_b \theta(b,j,t)$. Aggregated over a play or a season, it is the number of ``effective'' blockers a rusher faces over that time period. Because the number of effective blockers depends partly on the blocking scheme a defense faces, we normalize each rusher's attention within every play-frame relative to the average rusher on the field such that the resulting figures are comparable across three-, four-, and five-man fronts. Table~\ref{tab:att_top_norm} reports the rushers who draw the most front-normalized attention by position, which generate about 1.5 times as many blockers per play as the average rusher does. The five who draw the least by position can be found in Appendix Table~\ref{tab:att_bot_norm}.
 
 
 \input{../tables/attention_rankings.tex}
@@ -257,13 +257,15 @@ $$ R_j = \alpha_R^\top z_j + \sigma_R\,\varepsilon^R_j, \quad B_b = \alpha_B^\to
 $$ O_o = \sigma_O\,\varepsilon^O_o,\quad D_d = \sigma_D\,\varepsilon^D_d,\quad \mathrm{Dn}_i = \sigma_{\mathrm{Dn}}\,\varepsilon^{\mathrm{Dn}}_{\mathrm{dn}(i)}, \quad\text{and likewise } \mathrm{Qt},\,\mathrm{OF},\,\mathrm{DC}, \qquad \varepsilon \sim \mathcal{N}(0,1). $$
 The intercept $\mu$, the attribute-coefficient vectors $\alpha_R, \alpha_B, \alpha_Q$, and the game context effects $\gamma$ are given $\mathcal{N}(0,1)$ priors, and every scale parameter --- the residual $\sigma$ together with $\sigma_R, \sigma_B, \sigma_Q, \sigma_O, \sigma_D$ and the four game context scales $\sigma_{\mathrm{Dn}}, \sigma_{\mathrm{Qt}}, \sigma_{\mathrm{OF}}, \sigma_{\mathrm{DC}}$ --- is given an $\text{Inverse-Gamma}(2,1)$ prior. All continuous covariates are standardized. 
 
-In contrast to previous plus/minus metrics which incorporate every on-field participant, we only include the rusher of interest and the offensive linemen. We argue instead that the blocking assignment $\theta(\cdot, j, i)$ is a sufficient conditioning variable for the influence of the remaining rushers. The only way another rusher $k$ can affect $j$'s strain is by competing for the finite blocking resource and drawing assignment mass away from $j$. Recall that for each blocker $\sum_{j} \theta(b,j,i) = 1$ and that the reallocation is fully observed in the $\theta(b,j,i)$ that $j$ receives. Conditional on $\theta(\cdot, j, i)$, the identities and abilities of the other rushers therefore carry no additional information about $j$'s strain. 
+In contrast to previous plus/minus metrics which incorporate every on-field participant, we include only the rusher of interest, excluding the other rushers. We argue instead that the blocking assignment $\theta(\cdot, j, i)$ is a sufficient conditioning variable for the influence of the remaining rushers. The only way another rusher $k$ can affect $j$'s strain is by competing for the finite blocking resource and drawing assignment mass away from $j$. Recall that for each blocker $\sum_{j} \theta(b,j,i) = 1$ and that the reallocation is fully observed in the $\theta(b,j,i)$ that $j$ receives. Conditional on $\theta(\cdot, j, i)$, the identities and abilities of the other rushers therefore carry no additional information about $j$'s strain. 
 
 
 
-We fit the play-level model on all eight weeks of data (8{,}531 plays, 36{,}259 rusher observations) with the No-U-Turn sampler implemented using NumPyro.  We rank players, restricting our attention to players with at least 50 pass snaps over the sample.  This removes the rare blitzers with high variance estimates (e.g. defensive backs who rush on a handful of plays).
+We fit the play-level model on all eight weeks of data (8{,}531 plays, 36{,}259 rusher observations) with the No-U-Turn sampler implemented using NumPyro.  We rank rushers, restricting our attention to rushers with at least 50 pass snaps over the sample.  This removes the rare blitzers with high variance estimates (e.g. defensive backs who rush on a handful of plays).
 
 We rank the top pass rushers by their estimated effect on peak strain (higher indicates more pressure generated), within position group in Table~\ref{tab:rusher_pm_top}.  The bottom five by position can be found in Appendix Table~\ref{tab:rusher_pm_bot}. The top five athletes in each group are widely-recognized elite rushers including Myles Garrett among edge defenders, Aaron Donald and Jonathan Allen among interior linemen, and Vita Vea among nose tackles. The blocker coefficients in Table~\ref{tab:blocker_pm_top} (bottom five in Appendix Table~\ref{tab:blocker_pm_bot}) are oriented so that a higher value corresponds to better pressure suppression. 
+
+We also are able to rank quarterbacks by their STRAIN allowed, as evidenced by \ref{tab:qb_suppression}. 
 
 \input{../tables/rusher_plusminus.tex}
 
@@ -324,7 +326,7 @@ Additionally, we marry the continuous time-scale assignments with the  player tr
 
 
 \section{Pocket Space Ownership} \label{pocketspace}
-Our final application incorporates the assignment probabilities into a space-control model of the pass-protection pocket. We utilize the fitted blocking probabilities to measure the space a rusher generates for his teammates. Each player is assigned a bivariate distribution representing his spatial influence over the field. A location is controlled by whichever side's influence dominates, and integrating control over the region around the quarterback measures who owns the pocket. 
+Our final application incorporates the assignment probabilities into a space-control model of the pass-protection pocket. We utilize the fitted blocking probabilities to measure the space a rusher generates for his teammates. Each player is assigned a bivariate distribution representing his spatial influence over the field. A location is controlled by whichever side's influence dominates, and integrating control over the region around the quarterback measures who owns the pocket. Table \ref{tab:pocket_rusher_space} lists rushers who have gained valuable access to the pocket. 
 Figure~\ref{fig:pocket_control} shows the field across a collapsing pocket: at the snap the quarterback sits in a protected area, which shrinks as a rusher wins. Quantitatively, the minimum over a play of the quarterback's own controlled area predicts charted pressure and sacks.
 
 
@@ -353,7 +355,15 @@ This recovers a dimension of pass rushing that personal-pressure metrics miss. T
 
 
 
+\section{External Validation against PFF Charting} \label{pffvalid}
+Our assignments and metrics are derived purely from tracking geometry and STRAIN, so the independently hand-charted pass-block / pass-rush data from Pro Football Focus provides an external check.
 
+First, the HMM assignments recover the charted blocker responsibilities. PFF tags, for each play and blocker, the single rusher that blocker was responsible for. Over the $44{,}037$ charted blocker-plays we are able to match, our smoothed assignment places a mean of $0.77$ of its engaged probability mass on exactly that rusher and the model's most-assigned rusher agrees with PFF's designation on $87.5\%$ of blocker-plays. 
+
+Second, the block-shedding survival rates (Section~\ref{shedding}) and the plus-minus rusher and blocker effects and realized-impedance ranking (Section~\ref{plusminus})  also correlate with charted pressure outcomes in the expected directions, though the strength of the agreement differs between pass rushers and pass blockers (Table~\ref{tab:pff_validation}). On the rusher side this correlation is strong. A rusher's estimated plus-minus effect on peak strain tracks his PFF pressure, hurry, sack, and shed rate closely. On the blocker side the correlations are modest, but statistically significant and directionally correct. Because better protection means less pressure, the quality metrics correlate negatively with pressures allowed while the beat rate, a measure of failure, correlates positively. In conclusion, the rush-side metrics validate strongly against independent charting and the block-side metrics validate directionally, providing confidence that our methodology is picking up relevant signal. 
+
+\input{../tables/pff_validation.tex}
+\input{../tables/blocker_continuous_vs_play.tex}
 
 
 
@@ -504,16 +514,8 @@ and the disengaged persistence is the pooled fraction, $\hat{\rho}_{\text{null}}
 
 % \input{../tables/phase_comparison.tex}
 
-\FloatBarrier
-\section{External Validation against PFF Charting} \label{pffvalid}
-Our assignments and metrics are derived purely from tracking geometry and STRAIN, so the independently hand-charted pass-block / pass-rush data from Pro Football Focus provides an external check.
 
-First, the HMM assignments recover the charted blocker responsibilities. PFF tags, for each play and blocker, the single rusher that blocker was responsible for. Over the $44{,}037$ charted blocker-plays we are able to match, our smoothed assignment places a mean of $0.77$ of its engaged probability mass on exactly that rusher and the model's most-assigned rusher agrees with PFF's designation on $87.5\%$ of blocker-plays. 
 
-Second, the block-shedding survival rates (Section~\ref{shedding}) and the plus-minus rusher and blocker effects and realized-impedance ranking (Section~\ref{plusminus})  also correlate with charted pressure outcomes in the expected directions, though the strength of the agreement differs between pass rushers and pass blockers (Table~\ref{tab:pff_validation}). On the rusher side this correlation is strong. A rusher's estimated plus-minus effect on peak strain tracks his PFF pressure, hurry, sack, and shed rate closely. On the blocker side the correlations are modest, but statistically significant and directionally correct. Because better protection means less pressure, the quality metrics correlate negatively with pressures allowed while the beat rate, a measure of failure, correlates positively. In conclusion, the rush-side metrics validate strongly against independent charting and the block-side metrics validate directionally, providing confidence that our methodology is picking up relevant signal. 
-
-\input{../tables/pff_validation.tex}
-\input{../tables/blocker_continuous_vs_play.tex}
 
 \FloatBarrier
 \section{Supplementary Tables}
