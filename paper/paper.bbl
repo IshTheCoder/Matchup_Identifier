@@ -138,4 +138,11 @@ Zigler, C.~M., K.~Watts, R.~W. Yeh, Y.~Wang, B.~A. Coull, and F.~Dominici
 \newblock Model feedback in bayesian propensity score estimation.
 \newblock {\em Biometrics\/}~{\em 69\/}(1), 263--273.
 
+\bibitem[\protect\citeauthoryear{Vehtari, Gelman, Simpson, Carpenter, and
+  B\"urkner}{Vehtari et~al.}{2021}]{vehtari2021rank}
+Vehtari, A., A.~Gelman, D.~Simpson, B.~Carpenter, and P.-C. B\"urkner (2021).
+\newblock Rank-normalization, folding, and localization: An improved
+  {$\widehat{R}$} for assessing convergence of {MCMC} (with discussion).
+\newblock {\em Bayesian Analysis\/}~{\em 16}(2), 667--718.
+
 \end{thebibliography}

@@ -53,7 +53,10 @@ cat("wrote figures/tau_positions.{png,pdf}\n")
 ## --------------------------------------------------------------------- rusher 2-D --
 g <- read.csv("rusher_2d.csv", stringsAsFactors = FALSE)
 mx <- median(g$attention); my <- median(g$effect)               # quadrant crosshairs
-pal <- c(Edge = "#1f77b4", DT = "#d62728", NT = "#2ca02c")
+# Warm hues for the defensive side, spread across crimson -> burnt orange -> gold so the three
+# groups separate in the dense middle of the cloud (the old crimson/rose pair read as one colour).
+# Kept in step with PAL in src/make_ridge_figures.R.
+pal <- c(Edge = "#B2182B", DT = "#D95F02", NT = "#E6AB02")  # matches src/make_ridge_figures.R
 g$grp <- factor(ifelse(g$pos %in% names(pal), g$pos, "other"), levels = c("Edge", "DT", "NT", "other"))
 
 # annotate extremes: top 6 by effect, top 6 by attention, and top 6 high-on-both
@@ -65,10 +68,14 @@ g$lab <- NA_character_; g$lab[lab_ids] <- g$name[lab_ids]
 p2 <- ggplot(g, aes(attention, effect)) +
   geom_vline(xintercept = mx, linetype = "dashed", color = "grey70") +
   geom_hline(yintercept = my, linetype = "dashed", color = "grey70") +
-  geom_point(aes(color = grp, size = grp, alpha = grp)) +
+  geom_point(aes(color = grp, shape = grp, size = grp, alpha = grp)) +
   scale_color_manual(values = c(pal, other = "grey60"), name = NULL) +
-  scale_size_manual(values = c(Edge = 2.2, DT = 2.2, NT = 2.2, other = 1.4), guide = "none") +
-  scale_alpha_manual(values = c(Edge = .6, DT = .6, NT = .6, other = .3), guide = "none") +
+  # shape as a second, redundant channel: in the crowded interior the marker outline separates the
+  # groups even where two points overlap, and it survives greyscale printing.
+  scale_shape_manual(values = c(Edge = 16, DT = 17, NT = 15, other = 16), name = NULL) +
+  scale_size_manual(values = c(Edge = 2.2, DT = 2.1, NT = 2.0, other = 1.4), guide = "none") +
+  # 0.8 rather than 0.6: at 0.6 on white the gold washed out to near-cream.
+  scale_alpha_manual(values = c(Edge = .8, DT = .8, NT = .8, other = .3), guide = "none") +
   labs(x = "Attention commanded  (front-normalized: blockers drawn vs. average rusher on the play)",
        y = expression("Plus-minus effect " * R[j] * "  (strain generated, adjusted for blocking)"),
        title = "Two dimensions of pass rush: pressure generated vs. blocking attention drawn") +

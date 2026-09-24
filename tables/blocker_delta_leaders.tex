@@ -2,24 +2,24 @@
 \begin{table}[h!]
 \centering
 \footnotesize
-\begin{tabular}{llccc}
+\begin{tabular}{llcccc}
 \toprule
-Name & Pos & $B_b$ & 95\% CI & PFF press.\ all. \\
+Name & Pos & $B_b$ & 95\% CI & Real. & PFF press.\ all. \\
 \midrule
-Matt Skura & C & +0.018 & $[+0.012,\,+0.023]$ & 0.08 \\
-Ereck Flowers & G & +0.017 & $[+0.013,\,+0.021]$ & 0.05 \\
-Jon Runyan & G & +0.017 & $[+0.012,\,+0.022]$ & 0.06 \\
-Lucas Patrick & G & +0.017 & $[+0.012,\,+0.022]$ & 0.04 \\
-Rodney Hudson & C & +0.017 & $[+0.012,\,+0.022]$ & 0.00 \\
-Wes Schweitzer & G & +0.016 & $[+0.012,\,+0.021]$ & 0.06 \\
-Connor McGovern & C & +0.016 & $[+0.012,\,+0.021]$ & 0.04 \\
-Oday Aboushi & G & +0.016 & $[+0.011,\,+0.022]$ & 0.03 \\
-Olisaemeka Udoh & T & +0.016 & $[+0.012,\,+0.021]$ & 0.08 \\
-Quenton Nelson & G & +0.016 & $[+0.011,\,+0.021]$ & 0.04 \\
-Wyatt Teller & G & +0.016 & $[+0.012,\,+0.020]$ & 0.06 \\
-Jordan Mailata & T & +0.016 & $[+0.011,\,+0.021]$ & 0.08 \\
+Matt Skura & C & +0.018 & $[+0.012,\,+0.023]$ & +0.500 & 0.08 \\
+Ereck Flowers & G & +0.017 & $[+0.013,\,+0.021]$ & +0.515 & 0.05 \\
+Jon Runyan & G & +0.017 & $[+0.012,\,+0.022]$ & +0.488 & 0.06 \\
+Lucas Patrick & G & +0.017 & $[+0.012,\,+0.022]$ & +0.489 & 0.04 \\
+Connor McGovern & C & +0.017 & $[+0.012,\,+0.021]$ & +0.492 & 0.04 \\
+Wes Schweitzer & G & +0.016 & $[+0.012,\,+0.021]$ & +0.515 & 0.06 \\
+Quenton Nelson & G & +0.016 & $[+0.011,\,+0.021]$ & +0.504 & 0.04 \\
+Rodney Hudson & C & +0.016 & $[+0.011,\,+0.021]$ & +0.514 & 0.00 \\
+Olisaemeka Udoh & T & +0.016 & $[+0.012,\,+0.021]$ & +0.464 & 0.08 \\
+Wyatt Teller & G & +0.016 & $[+0.012,\,+0.021]$ & +0.489 & 0.06 \\
+Oday Aboushi & G & +0.016 & $[+0.011,\,+0.021]$ & +0.436 & 0.03 \\
+Jordan Mailata & T & +0.016 & $[+0.011,\,+0.021]$ & +0.520 & 0.08 \\
 \bottomrule
 \end{tabular}
-\caption{Top pass blockers by the continuous-time \emph{dose} rating $B_b$ --- the deceleration of an assigned rusher's strain per unit blocking dose $\theta(b,j,t)$, conditioning on the time-$t$ state; $\geq 100$ snaps. Brackets are 95\% posterior credible intervals, which are narrow given the $\sim\!1.1$M rusher-frames.}
+\caption{Top pass blockers by the continuous-time rating $B_b$ --- the deceleration of an assigned rusher's strain per unit blocking $\theta(b,j,t)$, conditioning on the time-$t$ state; $\geq 100$ snaps. Because $B_b$ is a per-unit-assignment effect, we also report the realized deceleration it delivers per snap (Real.), $B_b\sum_{j,t}\theta(b,j,t)$ averaged over the blocker's snaps. This is the frame-level counterpart of the play-level realized impedance of Table~\ref{tab:blocker_value}}
 \label{tab:blocker_delta_leaders}
 \end{table}

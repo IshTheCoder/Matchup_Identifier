@@ -3,7 +3,11 @@
 change -- so it credits SUSTAINED engagement the first-difference (dtheta) model cannot see. Pass
 "baseline" to add the rho*STRAIN_t control (mean-reversion test). SVI fit; B_b validated vs PFF
 pressures allowed (raw + within-position). Compare to run_blocker_delta_model.py."""
-import sys, time, pickle
+import os, sys, time, pickle
+os.environ.setdefault("JAX_PLATFORMS", "cpu")
+N_CHAINS = 4
+# set before the jax backend initializes so the chains run in parallel on CPU cores
+import numpyro; numpyro.set_host_device_count(N_CHAINS)
 import numpy as np, pandas as pd
 from scipy.stats import pearsonr, spearmanr
 sys.path.insert(0, "src"); sys.path.insert(0, "model")
@@ -37,8 +41,8 @@ print(f"N_obs={N:,} N_blockers={data['N_blockers']}  dSTRAIN mean={data['outcome
 
 m = ContinuousBlockerDoseModel()
 if USE_MCMC:
-    print("inference: MCMC (NUTS, 1 chain, 800/800)", flush=True)
-    m.run_mcmc_inference(data, num_warmup=800, num_samples=800, num_chains=1)
+    print(f"inference: MCMC (NUTS, {N_CHAINS} chains, 800/800)", flush=True)
+    m.run_mcmc_inference(data, num_warmup=800, num_samples=800, num_chains=N_CHAINS)
 else:
     print("inference: SVI (AutoNormal, 20000 steps)", flush=True)
     m.run_svi_inference(data, num_steps=20000, lr=5e-3)

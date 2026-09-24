@@ -7,6 +7,7 @@
 #              attention/entropy tables, rusher_2d figure
 #   shedding   KM engagement/shed tables + opponent-adjusted hold model (NUTS)
 #   pocket     Fernandez-Bornn pocket space control tables + pocket_control figure
+#   ridges     ridgeline posterior figures for every CI-bearing table (needs playpm + shedding)
 #   robustness phase sweep -> phase_comparison.tex
 #   validate   external PFF validation -> pff_validation.tex
 #              (reads playpm + shedding outputs, so it MUST run last)
@@ -26,6 +27,8 @@ cd "$(dirname "$0")"
 # everything after reuses playpm's assignments.
 SKIP_HMM=1 ./run_model.sh shedding
 SKIP_HMM=1 ./run_model.sh pocket
+# ridges reads the playpm AND shedding posteriors, so it runs after both.
+SKIP_HMM=1 ./run_model.sh ridges
 SKIP_HMM=1 ./run_model.sh robustness
 SKIP_HMM=1 ./run_model.sh validate
 

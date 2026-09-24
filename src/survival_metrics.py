@@ -157,17 +157,22 @@ def run(assignment_path="assignment_data_phase25.csv"):
     # ---- tex tables (tackles by engagement; rushers by shedding) ----
     os.makedirs("tables", exist_ok=True)
     T = blk[blk.pos == "T"].copy()
-    _tex_block(T.sort_values("rmst_s", ascending=False),
-               "tables/block_engagement.tex", "tab:block_engagement",
-               "Tackle pass-block engagement (longer survival-to-beat = better), "
-               f"min {MIN_PLAYS} blocks", ["name", "rmst_s", "beat_rate", "engage_resid_s"],
-               ["Name", "RMST (s)", "Beat rate", "Adj resid (s)"])
     RU = rush.copy()
-    _tex_block(RU[RU.pos.isin(["Edge", "DT", "NT"])].sort_values("rmst_s").head(15),
-               "tables/rusher_shedding.tex", "tab:rusher_shedding",
-               "Pass rushers that beat blocks fastest (shortest survival-to-beat), "
-               f"min {MIN_PLAYS} blocks", ["name", "pos", "rmst_s", "beat_rate"],
-               ["Name", "Pos", "RMST (s)", "Beat rate"])
+    _tex_side_by_side(
+        "tables/beat_rates.tex", "tab:beat_rates",
+        "Two sides of the same block-failure survival outcome: tackles ranked by how long they "
+        "sustain a block (a) and pass rushers by how quickly they beat one (b); "
+        f"min {MIN_PLAYS} blocks.",
+        [_subtable(T.sort_values("rmst_s", ascending=False),
+                   "tab:block_engagement",
+                   "Tackle pass-block engagement (longer survival-to-beat = better)",
+                   ["name", "rmst_s", "beat_rate", "engage_resid_s"],
+                   ["Name", "RMST (s)", "Beat rate", "Adj resid (s)"]),
+         _subtable(RU[RU.pos.isin(["Edge", "DT", "NT"])].sort_values("rmst_s").head(15),
+                   "tab:rusher_shedding",
+                   "Pass rushers that beat blocks fastest (shortest survival-to-beat)",
+                   ["name", "pos", "rmst_s", "beat_rate"],
+                   ["Name", "Pos", "RMST (s)", "Beat rate"])])
 
     print(f"\nblockers ranked: {len(blk)}  rushers ranked: {len(rush)}")
     print("\nstickiest tackles (engagement, top RMST):")
@@ -181,15 +186,26 @@ def run(assignment_path="assignment_data_phase25.csv"):
         ["name", "pos", "rmst_s", "beat_rate", "n_blocks"]].to_string(index=False))
 
 
-def _tex_block(df, path, label, caption, cols, headers):
+def _subtable(df, label, caption, cols, headers, width="0.48"):
+    """one side-by-side panel. \\scriptsize because four columns plus a name do not fit at
+    \\footnotesize in half a text width."""
     fmt = lambda v: f"{v:.3f}" if isinstance(v, float) else str(v)
     body = " \\\\\n".join(" & ".join(fmt(r[c]) for c in cols) for _, r in df.head(15).iterrows())
     spec = "l" + "c" * (len(cols) - 1)
+    return ("\\begin{subtable}{" + width + "\\textwidth}\n\\centering\n\\scriptsize\n"
+            "\\begin{tabular}{" + spec + "}\n\\toprule\n" + " & ".join(headers)
+            + " \\\\\n\\midrule\n" + body + " \\\\\n\\bottomrule\n\\end{tabular}\n\\caption{"
+            + caption + "}\n\\label{" + label + "}\n\\end{subtable}")
+
+
+def _tex_side_by_side(path, label, caption, panels):
+    """both beat-rate panels in ONE table environment, side by side.
+
+    The block and rush sides are the two faces of the same survival outcome, so they belong in a
+    single float. Each panel keeps its own \\label, so existing \\ref's resolve (as 'Na'/'Nb')."""
     with open(path, "w") as f:
-        f.write("\\begin{table}[h!]\n\\centering\n\\footnotesize\n\\begin{tabular}{" + spec + "}\n"
-                "\\toprule\n" + " & ".join(headers) + " \\\\\n\\midrule\n" + body
-                + " \\\\\n\\bottomrule\n\\end{tabular}\n\\caption{" + caption + "}\n\\label{"
-                + label + "}\n\\end{table}\n")
+        f.write("\\begin{table}[h!]\n\\centering\n" + "\n\\hfill\n".join(panels)
+                + "\n\\caption{" + caption + "}\n\\label{" + label + "}\n\\end{table}\n")
 
 
 if __name__ == "__main__":

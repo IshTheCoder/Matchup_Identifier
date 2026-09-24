@@ -16,7 +16,7 @@ set -euo pipefail
 
 # ── Containers / workdir ──────────────────────────────────────────────────────
 CTR_GPU="football"          # GPU container: HMM, model fits, exports, Python figures
-CTR_R="r-new-football"      # R container:   make_figures.R
+CTR_R="r-new-football"      # R container:   make_figures.R, make_ridge_figures.R
 CONTAINER_WORKDIR="/home/joyvan/work"
 EXEC="docker exec -w $CONTAINER_WORKDIR"
 
@@ -142,9 +142,22 @@ select_model() {
             FIGS_PY=()
             FIGS_R=()
             ;;
+        ridges)   # ridgeline (caterpillar) posterior figures for every CI-bearing paper table.
+                  # Fits nothing: reads the play-level + continuous-time posteriors (playpm) AND the
+                  # block-hold posterior (shedding), so it MUST run after both. STEP 4 refreshes the
+                  # model_outputs/ parquet that the exporter reads.
+            RUN=()
+            TABLES=()
+            FIGS_PY=(
+                "scripts/export_ridge_draws.py"               # -> model_outputs/ridge_draws.parquet (owns player selection)
+            )
+            FIGS_R=(
+                "src/make_ridge_figures.R"                    # -> figures/ridge_*.{png,pdf}, incl. the combined per-table panels
+            )
+            ;;
         *)
             echo "ERROR: unknown model '$1'." >&2
-            echo "Known models: playpm shedding pocket openness qbforce robustness validate" >&2
+            echo "Known models: playpm shedding pocket openness qbforce robustness validate ridges" >&2
             return 1
             ;;
     esac
@@ -158,14 +171,14 @@ select_model() {
 #   SKIP_HMM=1 ./run_model.sh playpm   # reuse existing assignments
 #   GPU_ID=1  ./run_model.sh pocket
 if [[ "${1:-}" == "--list" ]]; then
-    echo "Known models: playpm shedding pocket openness qbforce robustness validate"
+    echo "Known models: playpm shedding pocket openness qbforce robustness validate ridges"
     exit 0
 fi
 
 if [[ $# -ge 1 ]]; then
     MODEL="$1"
 else
-    echo "Model to run (playpm | shedding | pocket | openness | qbforce | robustness | validate):"
+    echo "Model to run (playpm | shedding | pocket | openness | qbforce | robustness | validate | ridges):"
     read -rp "? " MODEL
 fi
 [[ -z "${MODEL:-}" ]] && { echo "No model given — exiting."; exit 1; }

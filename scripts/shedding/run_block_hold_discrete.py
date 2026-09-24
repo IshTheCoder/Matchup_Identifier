@@ -3,7 +3,11 @@ engagement spells to per-frame Bernoulli trials, opponent-adjusts via the engage
 plus-minus (fixed covariate), and fits a tightly-regularized blocker hold frailty. KEY TEST: does the
 opponent-adjusted hold rating validate vs PFF pressures-allowed WITHIN position (where marginal
 blocker metrics fail)?"""
-import sys, pickle
+import os, sys, pickle
+os.environ.setdefault("JAX_PLATFORMS", "cpu")
+N_CHAINS = 4
+# set before the jax backend initializes so the chains run in parallel on CPU cores
+import numpyro; numpyro.set_host_device_count(N_CHAINS)
 import numpy as np, pandas as pd
 from scipy.stats import pearsonr, spearmanr
 sys.path.insert(0, "src"); sys.path.insert(0, "model")
@@ -31,7 +35,10 @@ print(f"spells={len(ev):,} -> frame-rows={len(beaten):,}  beats={int(beaten.sum(
       f"({beaten.mean():.3%}/frame)  blockers={len(benc)}", flush=True)
 
 m = BlockHoldDiscreteModel()
-s = m.run_svi_inference(data, num_steps=15000, lr=5e-3)
+# NUTS rather than SVI: the paper reports credible intervals for this rating, and a mean-field
+# variational posterior understates their width (and admits no Rhat/ESS diagnostics).
+print(f"inference: MCMC (NUTS, {N_CHAINS} chains, 1000/1000)", flush=True)
+s = m.run_mcmc_inference(data, num_warmup=1000, num_samples=1000, num_chains=N_CHAINS)
 pickle.dump(s, open("block_hold_discrete_samples.pkl", "wb"))
 print(f"  alpha={s['alpha'].mean():+.3f}  g1={s['g1'].mean():+.3f} g2={s['g2'].mean():+.3f}  "
       f"beta_opp={s['beta_opp'].mean():+.3f} (P>0={np.mean(s['beta_opp']>0):.2f})  sigma_b={s['sigma_b'].mean():.3f}", flush=True)

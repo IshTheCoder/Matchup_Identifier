@@ -87,9 +87,9 @@ subs = [_sub("T"), _sub("G"), _sub("C")]
 body = "\n\\hfill\n".join(subs[:2]) + "\n\n\\bigskip\n" + subs[2] + "\n"
 with open("tables/blocker_value.tex", "w") as f:
     f.write("\\begin{table}[h!]\n\\centering\n" + body
-            + "\\caption{Top pass blockers by \\emph{realized impedance} --- mean strain removed per "
-            "snap $\\overline{B_b\\sum_j\\theta(b,j)}$ (Imp., STRAIN units) --- and its front-normalized "
-            "version (FN: impedance above same-front peers), min 50 snaps; brackets are 95\\% posterior "
+            + "\\caption{Top pass blockers by realized impedance $\\mathrm{Imp}_b$ "
+            "(Eq.~\\ref{eq:imp}) and its front-normalized version $\\mathrm{FN}_b$ "
+            "(Eq.~\\ref{eq:fn}), min 50 snaps; brackets are 95\\% posterior "
             "credible intervals for FN. Unlike the raw coefficient, this down-weights blockers who "
             "rarely engage (e.g.\\ a release-heavy fullback).}\n"
             "\\label{tab:blocker_value}\n\\end{table}\n")

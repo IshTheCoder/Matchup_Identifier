@@ -78,12 +78,18 @@ def _front_table(rank_top, label, caption):
             f"\n\\caption{{{caption}}}\n\\label{{{label}}}\n\\end{{table}}\n")
 
 
+_ATT_HEADER = ("% Attention = effective blockers drawn by a rusher, normalized per play to\n"
+               "% the average rusher (so it is comparable across 3-, 4-, and 5-man fronts).\n")
+
+# Top and bottom five are written to SEPARATE files: the top-5 table sits in the main text
+# and the bottom-5 is deferred to the appendix (same split as rusher/blocker_plusminus{,_bot}).
 with open("tables/attention_rankings.tex", "w") as f:
-    f.write("% Attention = effective blockers drawn by a rusher, normalized per play to\n"
-            "% the average rusher (so it is comparable across 3-, 4-, and 5-man fronts).\n")
+    f.write(_ATT_HEADER)
     f.write(_front_table(True, "tab:att_top_norm",
             f"Top 5 pass rushers by front-normalized attention, by position (min {MIN_SNAPS} snaps)."))
-    f.write("\n")
+
+with open("tables/attention_rankings_bot.tex", "w") as f:
+    f.write(_ATT_HEADER)
     f.write(_front_table(False, "tab:att_bot_norm",
             f"Bottom 5 pass rushers by front-normalized attention, by position (min {MIN_SNAPS} snaps)."))
 

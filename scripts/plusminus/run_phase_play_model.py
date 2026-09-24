@@ -9,6 +9,10 @@ Produces (suffix = _PHASE):
 import os, sys, pickle, time
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
+N_CHAINS = 4
+# numpyro needs the host device count set BEFORE the jax backend initializes, otherwise the
+# 4 chains run sequentially instead of in parallel across CPU cores.
+import numpyro; numpyro.set_host_device_count(N_CHAINS)
 sys.path.insert(0, "src"); sys.path.insert(0, "model")
 import numpy as np, pandas as pd, jax
 jax.config.update("jax_enable_x64", True)
@@ -29,7 +33,7 @@ print(f"[{PHASE}] plays={data['outcome'].shape[0]} valid_obs={int(data['mask'].s
       f"built in {time.time()-t0:.0f}s; running MCMC ...", flush=True)
 
 m = RusherPlusMinusModel()
-m.run_mcmc_inference(data, num_warmup=1000, num_samples=2000, num_chains=1)
+m.run_mcmc_inference(data, num_warmup=1000, num_samples=2000, num_chains=N_CHAINS)
 samples = m.get_posterior_samples()
 pickle.dump(samples, open(f"play_model_samples_{PHASE}.pkl", "wb"))
 sigma = float(np.asarray(samples["sigma"]).mean())
@@ -85,32 +89,32 @@ qb = qb[qb.snaps >= MIN_SNAPS].sort_values("suppression", ascending=False).reset
 qb.to_csv(f"qb_suppression_{PHASE}.csv", index=False)
 
 
-def _sub(df, cap, w):
+def _sub(df, cap, w, sym):
     body = " \\\\\n".join(f"{r['name']} & {r['effect']:.2f}" for _, r in df.iterrows()) + " \\\\"
     return ("\\begin{subtable}{" + w + "\\textwidth}\n\\centering\n\\footnotesize\n\\begin{tabular}{lc}\n"
-            "\\toprule\nName & Effect \\\\\n\\midrule\n" + body
+            "\\toprule\nName & " + sym + " \\\\\n\\midrule\n" + body
             + "\n\\bottomrule\n\\end{tabular}\n\\caption{" + cap + "}\n\\end{subtable}")
 
 
-def _tbl(groups, df, top, label, cap, w):
-    subs = [_sub(df[df.pos == g].sort_values("effect", ascending=not top).head(5), g, w) for g in groups]
+def _tbl(groups, df, top, label, cap, w, sym):
+    subs = [_sub(df[df.pos == g].sort_values("effect", ascending=not top).head(5), g, w, sym) for g in groups]
     return ("\\begin{table}[h!]\n\\centering\n" + "\n\\hfill\n".join(subs)
             + "\n\\caption{" + cap + "}\n\\label{" + label + "}\n\\end{table}\n")
 
 
 NOTE = f"(Phase {PHASE}, min {MIN_SNAPS} snaps)"
 with open(f"tables/rusher_plusminus_{PHASE}.tex", "w") as f:
-    f.write(_tbl(RUSH, ru, True, f"tab:rusher_pm_{PHASE}_top", f"Top 5 rushers by plus-minus, by position {NOTE}.", "0.24"))
-    f.write("\n" + _tbl(RUSH, ru, False, f"tab:rusher_pm_{PHASE}_bot", f"Bottom 5 rushers {NOTE}.", "0.24"))
+    f.write(_tbl(RUSH, ru, True, f"tab:rusher_pm_{PHASE}_top", f"Top 5 rushers by plus-minus, by position {NOTE}.", "0.24", "$R_j$"))
+    f.write("\n" + _tbl(RUSH, ru, False, f"tab:rusher_pm_{PHASE}_bot", f"Bottom 5 rushers {NOTE}.", "0.24", "$R_j$"))
 with open(f"tables/blocker_plusminus_{PHASE}.tex", "w") as f:
-    f.write(_tbl(BLK, bl, True, f"tab:blocker_pm_{PHASE}_top", f"Top 5 pass blockers by plus-minus, by position {NOTE}.", "0.32"))
-    f.write("\n" + _tbl(BLK, bl, False, f"tab:blocker_pm_{PHASE}_bot", f"Bottom 5 pass blockers {NOTE}.", "0.32"))
+    f.write(_tbl(BLK, bl, True, f"tab:blocker_pm_{PHASE}_top", f"Top 5 pass blockers by plus-minus, by position {NOTE}.", "0.32", "$B_b$"))
+    f.write("\n" + _tbl(BLK, bl, False, f"tab:blocker_pm_{PHASE}_bot", f"Bottom 5 pass blockers {NOTE}.", "0.32", "$B_b$"))
 with open(f"tables/qb_suppression_{PHASE}.tex", "w") as f:
     f.write("\\begin{table}[h!]\n\\centering\n")
     for d, c in [(qb.head(10), "Most strain-suppressing"), (qb.tail(10).iloc[::-1], "Least strain-suppressing")]:
         body = " \\\\\n".join(f"{r['name']} & {r['suppression']:.3f}" for _, r in d.iterrows()) + " \\\\"
         f.write("\\begin{subtable}{0.48\\textwidth}\n\\centering\n\\footnotesize\n\\begin{tabular}{lc}\n"
-                "\\toprule\nName & Strain Suppr. \\\\\n\\midrule\n" + body
+                "\\toprule\nName & Strain Suppr. ($-Q_q$) \\\\\n\\midrule\n" + body
                 + "\n\\bottomrule\n\\end{tabular}\n\\caption{" + c + "}\n\\end{subtable}\n\\hfill\n")
     f.write(f"\\caption{{Quarterbacks by strain suppression {NOTE}.}}\n\\label{{tab:qb_supp_{PHASE}}}\n\\end{{table}}\n")
 

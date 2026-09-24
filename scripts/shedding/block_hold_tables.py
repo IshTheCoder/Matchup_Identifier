@@ -40,11 +40,11 @@ def subtable(pos, n=5):
 tex = ("% Opponent-adjusted block-hold rating (discrete-time failure hazard) by position.\n"
        "\\begin{table}[h!]\n\\centering\n" + subtable("T") + "\\hfill\n" + subtable("G") + "\n\\bigskip\n"
        + subtable("C") + "\n\\caption{Top pass protectors by the opponent-adjusted block-hold rating "
-       "(higher $=$ holds longer NET of the rushers faced), with its $95\\%$ credible interval and the "
-       "implied probability the block is beaten within the $4$\\,s window against an \\emph{average} "
-       "rusher (beat\\%) and an \\emph{elite} edge rusher (beat\\%$_e$). The opponent term moves elite "
-       "tackles who face the best rushers (e.g.\\ Trent Williams) from the bottom of the marginal "
-       "hazard ranking to the top.}\n\\label{tab:block_hold}\n\\end{table}\n")
+       "(higher $=$ holds longer), with its $95\\%$ credible interval and the "
+       "implied probability the block is beaten within the $4$\\,s window against an average "
+       "rusher (beat\\%) and an elite edge rusher (beat\\%$_e$). The opponent term promotes elite "
+       "tackles who face the best rushers: Trent Williams rises from $15$th on the unadjusted "
+       "survival ranking to $3$rd here.}\n\\label{tab:block_hold}\n\\end{table}\n")
 open("tables/block_hold.tex", "w").write(tex)
 print("wrote tables/block_hold.tex")
 print(f"\nbeat-probability illustration (within play, avg rusher -> elite edge):")

@@ -78,38 +78,43 @@ print(f"  argmax-rusher agreement with PFF responsibility: {agree:.3f}")
 # correlations (A1/A2). Rows are the subset the manuscript reports.
 import os, math
 os.makedirs("tables", exist_ok=True)
-def _row(metric, outcome, store, key):
+def _row(metric, sym, outcome, store, key):
+    """One table row. `sym` is the quantity's symbol as the manuscript defines it, so a reader can
+    see which parameter is being correlated -- and so the rusher- and blocker-indexed versions of
+    the same metric name (RMST, beat rate) are told apart by their subscript."""
     r, rho, _, _ = store[key]
-    return f"\\quad {metric} & {outcome} & ${r:+.2f}$ & ${rho:+.2f}$ \\\\\n"
+    return f"\\quad {metric} & {sym} & {outcome} & ${r:+.2f}$ & ${rho:+.2f}$ \\\\\n"
 n_rush = RCORR[("effect","pff_press")][2]
 n_blk  = BCORR[("fn_value","pff_press_allowed")][2]
 p_pm   = RCORR[("effect","pff_press")][3]
 e_pm   = int(math.floor(math.log10(p_pm))) if (p_pm and p_pm > 0) else -300
 with open("tables/pff_validation.tex", "w") as f:
     f.write("\\begin{table}[h!]\n\\centering\n\\footnotesize\n")
-    f.write("\\begin{tabular}{llcc}\n\\toprule\n")
-    f.write("Model metric & PFF outcome & Pearson & Spearman \\\\\n\\midrule\n")
-    f.write("\\multicolumn{4}{l}{\\emph{Pass rushers (pressures obtained)}} \\\\\n")
-    f.write(_row("Plus-minus effect", "pressures", RCORR, ("effect","pff_press")))
-    f.write(_row("Plus-minus effect", "sacks",     RCORR, ("effect","pff_sack")))
-    f.write(_row("Shed rate",         "pressures", RCORR, ("shed_rate","pff_press")))
-    f.write(_row("Engagement RMST",   "pressures", RCORR, ("rmst_s","pff_press")))
+    f.write("\\begin{tabular}{llccc}\n\\toprule\n")
+    f.write("Model metric & Symbol & PFF outcome & Pearson & Spearman \\\\\n\\midrule\n")
+    f.write("\\multicolumn{5}{l}{\\emph{Pass rushers (pressures obtained)}} \\\\\n")
+    f.write(_row("Plus-minus effect", "$R_j$",              "pressures", RCORR, ("effect","pff_press")))
+    f.write(_row("Plus-minus effect", "$R_j$",              "sacks",     RCORR, ("effect","pff_sack")))
+    f.write(_row("Shed rate",         "$\\mathrm{BR}_j$",   "pressures", RCORR, ("shed_rate","pff_press")))
+    f.write(_row("Engagement RMST",   "$\\mathrm{RMST}_j$", "pressures", RCORR, ("rmst_s","pff_press")))
     f.write("\\midrule\n")
-    f.write("\\multicolumn{4}{l}{\\emph{Pass blockers (pressures allowed)}} \\\\\n")
-    f.write(_row("Beat rate",          "pressures all.", BCORR, ("beat_rate","pff_press_allowed")))
-    f.write(_row("Engagement RMST",    "pressures all.", BCORR, ("rmst_s","pff_press_allowed")))
-    # "Realized impedance" in the manuscript is the FRONT-NORMALIZED value (fn_value), the
-    # within-position discriminator the paper emphasizes — not the raw real_imp coefficient.
-    f.write(_row("Realized impedance", "pressures all.", BCORR, ("fn_value","pff_press_allowed")))
+    f.write("\\multicolumn{5}{l}{\\emph{Pass blockers (pressures allowed)}} \\\\\n")
+    f.write(_row("Beat rate",       "$\\mathrm{BR}_b$",   "pressures all.", BCORR, ("beat_rate","pff_press_allowed")))
+    f.write(_row("Engagement RMST", "$\\mathrm{RMST}_b$", "pressures all.", BCORR, ("rmst_s","pff_press_allowed")))
+    # This row is the FRONT-NORMALIZED impedance (fn_value), the within-position discriminator the
+    # paper emphasizes -- not the raw real_imp coefficient. Labelled (FN) to match Table
+    # tab:blocker_cont_vs_play, which reports both variants and would otherwise clash.
+    f.write(_row("Realized impedance (FN)", "$\\mathrm{FN}_b$", "pressures all.", BCORR, ("fn_value","pff_press_allowed")))
     f.write("\\bottomrule\n\\end{tabular}\n")
     f.write("\\caption{Correlation of tracking-derived model metrics with independent PFF "
             f"pass-pressure charting (players with $\\geq {MIN}$ PFF snaps; rushers $n={n_rush}$, "
-            f"blockers $n={n_blk}$). Every entry is statistically significant ($p<0.05$; the rusher "
-            f"plus-minus effect at $p<10^{{{e_pm}}}$). Signs are as expected throughout: rushers who "
-            "generate more strain or shed faster draw more charted pressure, and blockers who sustain "
-            "longer or impede more allow less --- so the negative blocker entries are confirmations, "
-            "not contradictions. The smaller block-side magnitudes reflect the rarity of charted "
-            "pressures-allowed per blocker (a few percent of snaps) and grow at higher snap "
-            "thresholds.}\n")
+            f"blockers $n={n_blk}$). The Symbol column gives the quantity being correlated: the "
+            "plus-minus effect $R_j$ of Section~\\ref{plusminus}, the front-normalized realized "
+            "impedance $\\mathrm{FN}_b$ of Eq.~\\ref{eq:fn}, and the survival summaries "
+            "$\\mathrm{RMST}$ and beat rate $\\mathrm{BR}$ of Section~\\ref{shedding}, subscripted "
+            "$j$ for a rusher and $b$ for a blocker. PFF outcomes are per-snap rates, where a "
+            "pressure is a sack, hit, or hurry. Signs follow each metric's orientation: rushers who "
+            "generate more STRAIN or shed faster draw more charted pressure (positive), and blockers "
+            "who sustain longer or impede more allow less (negative).}\n")
     f.write("\\label{tab:pff_validation}\n\\end{table}\n")
 print("wrote tables/pff_validation.tex")

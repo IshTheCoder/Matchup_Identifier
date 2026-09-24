@@ -84,14 +84,14 @@ def _rows(df):
     return " \\\\\n".join(f"{r['name']} & {r['effect']:.2f}" for _, r in df.iterrows()) + " \\\\"
 
 
-def _subtable(df, cap, width):
+def _subtable(df, cap, width, sym):
     return ("\\begin{subtable}{" + width + "\\textwidth}\n\\centering\n\\footnotesize\n"
-            "\\begin{tabular}{lc}\n\\toprule\nName & Effect \\\\\n\\midrule\n"
+            "\\begin{tabular}{lc}\n\\toprule\nName & " + sym + " \\\\\n\\midrule\n"
             + _rows(df) + "\n\\bottomrule\n\\end{tabular}\n\\caption{" + cap + "}\n\\end{subtable}")
 
 
-def _table(groups, df, top, label, caption, width):
-    subs = [_subtable(df[df["pos"] == g].sort_values("effect", ascending=not top).head(5), g, width)
+def _table(groups, df, top, label, caption, width, sym):
+    subs = [_subtable(df[df["pos"] == g].sort_values("effect", ascending=not top).head(5), g, width, sym)
             for g in groups]
     return ("\\begin{table}[h!]\n\\centering\n" + "\n\\hfill\n".join(subs)
             + "\n\\caption{" + caption + "}\n\\label{" + label + "}\n\\end{table}\n")
@@ -102,17 +102,17 @@ NOTE = f"(min {MIN_SNAPS} pass snaps)"
 with open("tables/rusher_plusminus_continuous.tex", "w") as f:
     f.write("% Continuous-time (AR(1)) plus-minus rusher effect by position.\n")
     f.write(_table(RUSH, ru, True, "tab:rusher_pm_cont_top",
-                   f"Top 5 pass rushers by continuous-time plus-minus effect, by position {NOTE}.", "0.24"))
+                   f"Top 5 pass rushers by continuous-time plus-minus effect, by position {NOTE}.", "0.24", "$R_j$"))
     f.write("\n")
     f.write(_table(RUSH, ru, False, "tab:rusher_pm_cont_bot",
-                   f"Bottom 5 pass rushers by continuous-time plus-minus effect, by position {NOTE}.", "0.24"))
+                   f"Bottom 5 pass rushers by continuous-time plus-minus effect, by position {NOTE}.", "0.24", "$R_j$"))
 with open("tables/blocker_plusminus_continuous.tex", "w") as f:
     f.write("% Continuous-time (AR(1)) plus-minus blocker effect by position.\n")
     f.write(_table(BLK, bl, True, "tab:blocker_pm_cont_top",
-                   f"Top 5 pass blockers by continuous-time plus-minus effect, by position {NOTE}.", "0.32"))
+                   f"Top 5 pass blockers by continuous-time plus-minus effect, by position {NOTE}.", "0.32", "$B_b$"))
     f.write("\n")
     f.write(_table(BLK, bl, False, "tab:blocker_pm_cont_bot",
-                   f"Bottom 5 pass blockers by continuous-time plus-minus effect, by position {NOTE}.", "0.32"))
+                   f"Bottom 5 pass blockers by continuous-time plus-minus effect, by position {NOTE}.", "0.32", "$B_b$"))
 
 print(f"\nrushers kept: {len(ru)} | blockers kept: {len(bl)}")
 for g in RUSH:

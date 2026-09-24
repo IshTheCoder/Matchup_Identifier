@@ -58,15 +58,17 @@ def _rows(df):
         for _, r in df.iterrows()) + " \\\\"
 
 
-def _subtable(df, cap, width="0.48"):
+def _subtable(df, cap, sym, width="0.48"):
+    # `sym` is the parameter's symbol in the play-level model of the paper (R_j for rushers,
+    # B_b for blockers), so the column header names the estimand rather than "Effect".
     return ("\\begin{subtable}{" + width + "\\textwidth}\n\\centering\n\\footnotesize\n"
-            "\\begin{tabular}{lcc}\n\\toprule\nName & Effect & 95\\% CI \\\\\n\\midrule\n"
+            "\\begin{tabular}{lcc}\n\\toprule\nName & " + sym + " & 95\\% CI \\\\\n\\midrule\n"
             + _rows(df) + "\n\\bottomrule\n\\end{tabular}\n\\caption{" + cap + "}\n\\end{subtable}")
 
 
-def _table(groups, df, top, label, caption, width="0.48"):
+def _table(groups, df, top, label, caption, sym, width="0.48"):
     # two subtables per row (the CI column needs the width); break the line after each pair
-    subs = [_subtable(df[df["pos"] == g].sort_values("effect", ascending=not top).head(5), g, width)
+    subs = [_subtable(df[df["pos"] == g].sort_values("effect", ascending=not top).head(5), g, sym, width)
             for g in groups]
     body = ""
     for i in range(0, len(subs), 2):
@@ -87,24 +89,24 @@ with open("tables/rusher_plusminus.tex", "w") as f:
             "% attribute-centered, per position, filtered by snaps. TOP only; bottom in _bot file.\n")
     f.write(_table(RUSH, ru, True, "tab:rusher_pm_top",
                    f"Top 5 pass rushers by plus-minus effect, by position {NOTE}. "
-                   "Brackets are 95\\% posterior credible intervals."))
+                   "Brackets are 95\\% posterior credible intervals.", "$R_j$"))
 with open("tables/rusher_plusminus_bot.tex", "w") as f:
     f.write("% Bottom-five pass rushers by plus-minus effect (appendix).\n")
     f.write(_table(RUSH, ru, False, "tab:rusher_pm_bot",
                    f"Bottom 5 pass rushers by plus-minus effect, by position {NOTE}. "
-                   "Brackets are 95\\% posterior credible intervals."))
+                   "Brackets are 95\\% posterior credible intervals.", "$R_j$"))
 
 with open("tables/blocker_plusminus.tex", "w") as f:
     f.write("% Play-level plus-minus blocker effect (higher = better pressure suppression,\n"
             "% since the blocker term is subtracted), per position. TOP only; bottom in _bot file.\n")
     f.write(_table(BLK, bl, True, "tab:blocker_pm_top",
                    f"Top 5 pass blockers by plus-minus effect, by position {NOTE}. "
-                   "Brackets are 95\\% posterior credible intervals."))
+                   "Brackets are 95\\% posterior credible intervals.", "$B_b$"))
 with open("tables/blocker_plusminus_bot.tex", "w") as f:
     f.write("% Bottom-five pass blockers by plus-minus effect (appendix).\n")
     f.write(_table(BLK, bl, False, "tab:blocker_pm_bot",
                    f"Bottom 5 pass blockers by plus-minus effect, by position {NOTE}. "
-                   "Brackets are 95\\% posterior credible intervals."))
+                   "Brackets are 95\\% posterior credible intervals.", "$B_b$"))
 
 # ------------------------------------------------ QB strain suppression --
 # Q_q enters the peak-strain predictor additively, so a LOWER QB effect means
@@ -142,7 +144,8 @@ with open("tables/qb_suppression.tex", "w") as f:
     for d, cap in [(qb.head(10), "Most strain-suppressing"),
                    (qb.tail(10).iloc[::-1], "Least strain-suppressing")]:
         f.write("\\begin{subtable}{0.48\\textwidth}\n\\centering\n\\footnotesize\n"
-                "\\begin{tabular}{lcc}\n\\toprule\nName & Strain Suppr. & 95\\% CI \\\\\n\\midrule\n"
+                "\\begin{tabular}{lcc}\n\\toprule\nName & Strain Suppr. ($-Q_q$) & 95\\% CI \\\\\n"
+                "\\midrule\n"
                 + _qb_block(d) + "\n\\bottomrule\n\\end{tabular}\n\\caption{" + cap
                 + "}\n\\end{subtable}\n\\hfill\n")
     f.write("\\caption{Quarterbacks ranked by strain suppression (min " + str(MIN_SNAPS)
