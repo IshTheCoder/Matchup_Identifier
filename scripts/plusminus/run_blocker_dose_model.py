@@ -51,12 +51,19 @@ extra = f"  rho={float(s['rho'].mean()):+.4f}" if CONTROL_BASELINE else ""
 print(f"  intercept={float(s['intercept'].mean()):+.4f}  sigma={float(s['sigma'].mean()):.4f}  "
       f"sigma_blocker={float(s['sigma_blocker'].mean()):.4f}{extra}", flush=True)
 
-draws = s["blocker_effect"]                         # centered: posterior draws of B_b directly (D, N_blockers)
+draws = s["blocker_effect"]                         # posterior draws of B_b (D, N_blockers): sampled or deterministic site
 inv = {v: k for k, v in enc["blocker"].items()}
 players = pd.read_csv("data/players.csv").set_index("nflId")
 import model_io as mio                               # export posterior to model_outputs/*.parquet (R-accessible)
-mio.export_effect(f"dose_blocker{'_baseline' if CONTROL_BASELINE else ''}", draws,
-                  [inv[i] for i in range(draws.shape[1])], players)
+btag = '_baseline' if CONTROL_BASELINE else ''
+mio.export_effect(f"dose_blocker{btag}", draws, [inv[i] for i in range(draws.shape[1])], players)
+if "rusher_effect" in s:                             # attribute-centered rusher / QB random intercepts
+    print(f"  sigma_rusher={float(s['sigma_rusher'].mean()):.4f}  "
+          f"sigma_quarterback={float(s['sigma_quarterback'].mean()):.4f}", flush=True)
+    for key, ekey, nm in [("rusher_effect", "rusher", "rusher"), ("quarterback_effect", "qb", "quarterback")]:
+        einv = {v: k for k, v in enc[ekey].items()}
+        mio.export_effect(f"dose_{nm}{btag}", np.asarray(s[key]),
+                          [einv[i] for i in range(s[key].shape[1])], players)
 df = pd.DataFrame({
     "nflId": [inv[i] for i in range(draws.shape[1])],
     "effect": draws.mean(0), "lo": np.percentile(draws, 2.5, 0), "hi": np.percentile(draws, 97.5, 0)})

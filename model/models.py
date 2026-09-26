@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import numpyro
 from abc import ABC, abstractmethod
 from numpyro import distributions as dist
@@ -221,7 +222,43 @@ class ContinuousBlockerDoseModel(BaseModel):
     a rho*STRAIN_t control to absorb that baseline dependence (at the cost of conditioning on a mediator);
     if B_b is stable with vs without it, the dose effect is not merely mean reversion. Expects
     data['dose'] (N_obs,B)=theta(.,j,t); optional data['baseline'] (N_obs,)=STRAIN_t.
+
+    With player_effects=True the constant intercept is augmented by attribute-centered rusher and QB
+    random intercepts, mu + R_j + Q_q, with R_j ~ N(alpha_R^T z_j, s_R^2), Q_q ~ N(alpha_Q^T z_q, s_Q^2)
+    over z = [position, height, weight] (as in the play-level model): a rusher's (or QB's) own
+    per-frame strain drift, net of the blocking dose. The scales get tight HalfNormal priors so each
+    player shrinks to his archetype unless the data demand otherwise, leaving B_b the blocking signal.
+    The rusher position dummies are re-referenced to the most-observed position (EDGE), so mu is that
+    position's baseline; the shared builder's alphabetical reference (CB, ~1% of frames) left mu nearly
+    collinear with the position weights.
+
+    Parameterization: without the baseline control the fitted scales are tiny (s_B ~ 1e-3, s_R ~ 3e-4),
+    so each player's prior precision (1/s^2 ~ 1e6) swamps his likelihood precision (~2000 frames /
+    sigma^2 ~ 5e4) and the CENTERED form is a funnel NUTS cannot mix (Rhat > 2, ESS < 10). The default
+    is therefore NON-centered, effect = X @ alpha + s * z, recorded as deterministic '{kind}_effect'
+    sites. centered=True restores the old centered form (which mixed with the baseline control, s_B ~ 4e-3).
     """
+
+    def __init__(self, player_effects=True, centered=False):
+        super().__init__()
+        self.player_effects = player_effects
+        self.centered = centered
+
+    def _effect(self, kind, X, a, s, n):
+        """per-player effect around the attribute archetype X @ a with scale s"""
+        if self.centered:
+            return numpyro.sample(f"{kind}_effect", dist.Normal(X @ a, s).to_event(1))
+        return numpyro.deterministic(f"{kind}_effect", X @ a + s * self._vec(f"z_{kind}", n))
+
+    @staticmethod
+    def _rereference(X, frames):
+        """re-code X = [position dummies (reference dropped), height, weight] so the reference level is
+        the position with the most frames; `frames` = per-entity frame counts"""
+        X = np.asarray(X)
+        D = X[:, :-2]
+        full = np.column_stack([1.0 - D.sum(1), D])        # restore the dropped reference level
+        keep = np.arange(full.shape[1]) != np.argmax(frames @ full)
+        return np.column_stack([full[:, keep], X[:, -2:]])
 
     def model_fn(self, data: dict):
         dose = data["dose"]                           # (N_obs, B) theta(b,j,t) -- the dose at t
@@ -230,15 +267,25 @@ class ContinuousBlockerDoseModel(BaseModel):
         Bc = data["blocker_covariates"]
 
         intercept = numpyro.sample("intercept", dist.Normal(0.0, 1.0))
+        mean = intercept
+        if self.player_effects:                       # constant rusher + QB random intercepts
+            nR, nQ = int(data["N_rushers"]), int(data["N_quarterbacks"])
+            Rc = self._rereference(data["rusher_covariates"],
+                                   np.bincount(np.asarray(data["rusher_ids"]), minlength=nR))
+            Qc = data["quarterback_covariates"]       # height/weight only: no position reference
+            a_R = self._vec("rusher_weight", Rc.shape[1])
+            a_Q = self._vec("quarterback_weight", Qc.shape[1])
+            s_R = numpyro.sample("sigma_rusher", dist.HalfNormal(0.02))
+            s_Q = numpyro.sample("sigma_quarterback", dist.HalfNormal(0.02))
+            rusher_effect = self._effect("rusher", Rc, a_R, s_R, nR)
+            qb_effect = self._effect("quarterback", Qc, a_Q, s_Q, nQ)
+            mean = mean + rusher_effect[data["rusher_ids"]] + qb_effect[data["quarterback_ids"]]
         a_B = self._vec("blocker_weight", Bc.shape[1])
         s_B = numpyro.sample("sigma_blocker", dist.HalfNormal(0.05))   # data-scaled: IG(2,1) put ~0
         sigma = numpyro.sample("sigma", dist.HalfNormal(0.5))          # density at the true tiny scales
-        # CENTERED parameterization: sample B_b directly ~ Normal(attribute mean, s_B). With ~2000
-        # obs/blocker the likelihood pins each B_b, so centered avoids the non-centered funnel that
-        # collapsed the NUTS step size (tiny s_B -> microscopic steps, max-tree-depth trajectories).
-        blocker_effect = numpyro.sample("blocker_effect", dist.Normal(Bc @ a_B, s_B).to_event(1))
+        blocker_effect = self._effect("blocker", Bc, a_B, s_B, int(data["N_blockers"]))
 
-        mean = intercept - jnp.einsum("ob,ob->o", dose, blocker_effect[blocker_ids])
+        mean = mean - jnp.einsum("ob,ob->o", dose, blocker_effect[blocker_ids])
         if "baseline" in data:                        # optional baseline-strain control (mean-reversion test)
             rho = numpyro.sample("rho", dist.Normal(0.0, 1.0))
             mean = mean + rho * data["baseline"]

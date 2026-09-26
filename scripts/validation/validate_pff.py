@@ -1,9 +1,18 @@
 """Validate model-derived metrics against PFF hand-charting:
-(A) blocker disengagement / rusher shedding vs PFF pressures-allowed / pressures,
+(A) blocker disengagement / rusher shedding and the continuous-time (dose) rusher / blocker
+    effects R^Delta_j, B^Delta_b vs PFF pressures-allowed / pressures,
 (B) HMM assignment probabilities vs PFF blocker responsibility (pff_nflIdBlockedPlayer)."""
+import sys
 import numpy as np, pandas as pd
 from scipy.stats import pearsonr, spearmanr
+sys.path.insert(0, "src")
+import model_io as mio
 MIN = 50
+
+def _dose(kind):
+    """posterior-mean continuous-time effect per nflId (run_blocker_dose_model.py export)"""
+    s = pd.read_parquet(f"{mio.MODEL_DIR}/dose_{kind}_baseline_summary.parquet")
+    return s[["nflId", "mean"]].rename(columns={"mean": f"dose_{kind}"})
 
 pff = pd.read_csv("data/pffScoutingData.csv")
 pb = pff[pff.pff_role == "Pass Block"].copy()
@@ -30,28 +39,32 @@ BCORR, RCORR = {}, {}   # (metric, target) -> (pearson, spearman, n, pearson_p);
 print("="*70)
 print("(A1) BLOCKER metrics vs PFF pressures ALLOWED")
 sb = pd.read_csv("survival_by_blocker.csv")       # beat_rate, rmst_s, drive_win_rate, ...
-bv = pd.read_csv("blocker_value.csv")[["nflId","real_imp","fn_value","mean_eng","B_coef"]]
-b = sb.merge(bv, on="nflId", how="outer").merge(blk_pff, on="nflId", how="inner")
+b = sb.merge(_dose("blocker"), on="nflId", how="outer").merge(blk_pff, on="nflId", how="inner")
 b = b[b.pff_snaps >= MIN]
 print(f"  n blockers (>= {MIN} PFF snaps): {len(b)}")
-for m in ["beat_rate","rmst_s","real_imp","fn_value","mean_eng"]:
+for m in ["beat_rate","rmst_s","dose_blocker"]:
     if m in b:
         for tgt in ["pff_press_allowed","pff_sack_allowed","pff_beaten"]:
             r,rho,n,p = corr(b, m, tgt); BCORR[(m,tgt)] = (r,rho,n,p)
-            print(f"    {m:>10} vs {tgt:<18} Pearson {r:+.3f}  Spearman {rho:+.3f}  (n={n})")
+            print(f"    {m:>12} vs {tgt:<18} Pearson {r:+.3f}  Spearman {rho:+.3f}  (n={n})")
+# within position: demean the rating and the outcome by position group (T/G/C differ systematically)
+pos = pd.read_csv("data/players.csv").set_index("nflId")["officialPosition"]
+bw = b.dropna(subset=["dose_blocker", "pff_press_allowed"]).copy(); bw["pos"] = bw.nflId.map(pos)
+bw["e"] = bw.dose_blocker - bw.groupby("pos").dose_blocker.transform("mean")
+bw["t"] = bw.pff_press_allowed - bw.groupby("pos").pff_press_allowed.transform("mean")
+print(f"    dose_blocker vs pff_press_allowed WITHIN position: Pearson {pearsonr(bw.e, bw.t)[0]:+.3f}")
 
 print("="*70)
 print("(A2) RUSHER metrics vs PFF pressures OBTAINED")
 sr = pd.read_csv("survival_by_rusher.csv")[["nflId","beat_rate","rmst_s"]].rename(columns={"beat_rate":"shed_rate"})
-ru = pd.read_csv("rusher_rankings_phase25.csv")[["nflId","effect"]]
-r_ = sr.merge(ru, on="nflId", how="outer").merge(rsh_pff, on="nflId", how="inner")
+r_ = sr.merge(_dose("rusher"), on="nflId", how="outer").merge(rsh_pff, on="nflId", how="inner")
 r_ = r_[r_.pff_snaps >= MIN]
 print(f"  n rushers (>= {MIN} PFF snaps): {len(r_)}")
-for m in ["shed_rate","rmst_s","effect"]:
+for m in ["shed_rate","rmst_s","dose_rusher"]:
     if m in r_:
         for tgt in ["pff_press","pff_sack","pff_hurry"]:
             rr,rho,n,p = corr(r_, m, tgt); RCORR[(m,tgt)] = (rr,rho,n,p)
-            print(f"    {m:>10} vs {tgt:<10} Pearson {rr:+.3f}  Spearman {rho:+.3f}  (n={n})")
+            print(f"    {m:>12} vs {tgt:<10} Pearson {rr:+.3f}  Spearman {rho:+.3f}  (n={n})")
 
 print("="*70)
 print("(B) HMM assignment probs vs PFF blocker responsibility")
@@ -76,7 +89,7 @@ print(f"  argmax-rusher agreement with PFF responsibility: {agree:.3f}")
 
 # tables/pff_validation.tex — the exact table the paper \input's, built from the captured
 # correlations (A1/A2). Rows are the subset the manuscript reports.
-import os, math
+import os
 os.makedirs("tables", exist_ok=True)
 def _row(metric, sym, outcome, store, key):
     """One table row. `sym` is the quantity's symbol as the manuscript defines it, so a reader can
@@ -84,37 +97,33 @@ def _row(metric, sym, outcome, store, key):
     the same metric name (RMST, beat rate) are told apart by their subscript."""
     r, rho, _, _ = store[key]
     return f"\\quad {metric} & {sym} & {outcome} & ${r:+.2f}$ & ${rho:+.2f}$ \\\\\n"
-n_rush = RCORR[("effect","pff_press")][2]
-n_blk  = BCORR[("fn_value","pff_press_allowed")][2]
-p_pm   = RCORR[("effect","pff_press")][3]
-e_pm   = int(math.floor(math.log10(p_pm))) if (p_pm and p_pm > 0) else -300
+n_rush = RCORR[("dose_rusher","pff_press")][2]
+n_blk  = BCORR[("dose_blocker","pff_press_allowed")][2]
 with open("tables/pff_validation.tex", "w") as f:
     f.write("\\begin{table}[h!]\n\\centering\n\\footnotesize\n")
     f.write("\\begin{tabular}{llccc}\n\\toprule\n")
     f.write("Model metric & Symbol & PFF outcome & Pearson & Spearman \\\\\n\\midrule\n")
     f.write("\\multicolumn{5}{l}{\\emph{Pass rushers (pressures obtained)}} \\\\\n")
-    f.write(_row("Plus-minus effect", "$R_j$",              "pressures", RCORR, ("effect","pff_press")))
-    f.write(_row("Plus-minus effect", "$R_j$",              "sacks",     RCORR, ("effect","pff_sack")))
+    f.write(_row("Continuous-time effect", "$R^{\\Delta}_j$", "pressures", RCORR, ("dose_rusher","pff_press")))
+    f.write(_row("Continuous-time effect", "$R^{\\Delta}_j$", "sacks",     RCORR, ("dose_rusher","pff_sack")))
     f.write(_row("Shed rate",         "$\\mathrm{BR}_j$",   "pressures", RCORR, ("shed_rate","pff_press")))
     f.write(_row("Engagement RMST",   "$\\mathrm{RMST}_j$", "pressures", RCORR, ("rmst_s","pff_press")))
     f.write("\\midrule\n")
     f.write("\\multicolumn{5}{l}{\\emph{Pass blockers (pressures allowed)}} \\\\\n")
+    f.write(_row("Continuous-time effect", "$B^{\\Delta}_b$", "pressures all.", BCORR, ("dose_blocker","pff_press_allowed")))
     f.write(_row("Beat rate",       "$\\mathrm{BR}_b$",   "pressures all.", BCORR, ("beat_rate","pff_press_allowed")))
     f.write(_row("Engagement RMST", "$\\mathrm{RMST}_b$", "pressures all.", BCORR, ("rmst_s","pff_press_allowed")))
-    # This row is the FRONT-NORMALIZED impedance (fn_value), the within-position discriminator the
-    # paper emphasizes -- not the raw real_imp coefficient. Labelled (FN) to match Table
-    # tab:blocker_cont_vs_play, which reports both variants and would otherwise clash.
-    f.write(_row("Realized impedance (FN)", "$\\mathrm{FN}_b$", "pressures all.", BCORR, ("fn_value","pff_press_allowed")))
     f.write("\\bottomrule\n\\end{tabular}\n")
     f.write("\\caption{Correlation of tracking-derived model metrics with independent PFF "
             f"pass-pressure charting (players with $\\geq {MIN}$ PFF snaps; rushers $n={n_rush}$, "
             f"blockers $n={n_blk}$). The Symbol column gives the quantity being correlated: the "
-            "plus-minus effect $R_j$ of Section~\\ref{plusminus}, the front-normalized realized "
-            "impedance $\\mathrm{FN}_b$ of Eq.~\\ref{eq:fn}, and the survival summaries "
-            "$\\mathrm{RMST}$ and beat rate $\\mathrm{BR}$ of Section~\\ref{shedding}, subscripted "
-            "$j$ for a rusher and $b$ for a blocker. PFF outcomes are per-snap rates, where a "
-            "pressure is a sack, hit, or hurry. Signs follow each metric's orientation: rushers who "
-            "generate more STRAIN or shed faster draw more charted pressure (positive), and blockers "
-            "who sustain longer or impede more allow less (negative).}\n")
+            "continuous-time rusher and blocker effects $R^{\\Delta}_j$ and $B^{\\Delta}_b$ of "
+            "Section~\\ref{continuous}, and the survival summaries $\\mathrm{RMST}$ and beat rate "
+            "$\\mathrm{BR}$ of Section~\\ref{shedding}, subscripted $j$ for a rusher and $b$ for a "
+            "blocker. PFF outcomes are per-snap rates, where a pressure is a sack, hit, or hurry. "
+            "Signs follow each metric's orientation: rushers who accelerate their STRAIN faster or "
+            "shed faster draw more charted pressure (positive), and blockers who decelerate the rush "
+            "more or sustain longer allow less (negative), while the beat rate, a measure of "
+            "failure, is positive.}\n")
     f.write("\\label{tab:pff_validation}\n\\end{table}\n")
 print("wrote tables/pff_validation.tex")

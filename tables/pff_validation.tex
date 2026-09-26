@@ -6,17 +6,17 @@
 Model metric & Symbol & PFF outcome & Pearson & Spearman \\
 \midrule
 \multicolumn{5}{l}{\emph{Pass rushers (pressures obtained)}} \\
-\quad Plus-minus effect & $R_j$ & pressures & $+0.67$ & $+0.68$ \\
-\quad Plus-minus effect & $R_j$ & sacks & $+0.56$ & $+0.54$ \\
+\quad Continuous-time effect & $R^{\Delta}_j$ & pressures & $+0.57$ & $+0.58$ \\
+\quad Continuous-time effect & $R^{\Delta}_j$ & sacks & $+0.46$ & $+0.46$ \\
 \quad Shed rate & $\mathrm{BR}_j$ & pressures & $+0.37$ & $+0.36$ \\
 \quad Engagement RMST & $\mathrm{RMST}_j$ & pressures & $-0.31$ & $-0.36$ \\
 \midrule
 \multicolumn{5}{l}{\emph{Pass blockers (pressures allowed)}} \\
+\quad Continuous-time effect & $B^{\Delta}_b$ & pressures all. & $-0.32$ & $-0.32$ \\
 \quad Beat rate & $\mathrm{BR}_b$ & pressures all. & $+0.17$ & $+0.31$ \\
 \quad Engagement RMST & $\mathrm{RMST}_b$ & pressures all. & $-0.19$ & $-0.33$ \\
-\quad Realized impedance (FN) & $\mathrm{FN}_b$ & pressures all. & $-0.23$ & $-0.23$ \\
 \bottomrule
 \end{tabular}
-\caption{Correlation of tracking-derived model metrics with independent PFF pass-pressure charting (players with $\geq 50$ PFF snaps; rushers $n=250$, blockers $n=207$). The Symbol column gives the quantity being correlated: the plus-minus effect $R_j$ of Section~\ref{plusminus}, the front-normalized realized impedance $\mathrm{FN}_b$ of Eq.~\ref{eq:fn}, and the survival summaries $\mathrm{RMST}$ and beat rate $\mathrm{BR}$ of Section~\ref{shedding}, subscripted $j$ for a rusher and $b$ for a blocker. PFF outcomes are per-snap rates, where a pressure is a sack, hit, or hurry. Signs follow each metric's orientation: rushers who generate more STRAIN or shed faster draw more charted pressure (positive), and blockers who sustain longer or impede more allow less (negative).}
+\caption{Correlation of tracking-derived model metrics with independent PFF pass-pressure charting (players with $\geq 50$ PFF snaps; rushers $n=250$, blockers $n=207$). The Symbol column gives the quantity being correlated: the continuous-time rusher and blocker effects $R^{\Delta}_j$ and $B^{\Delta}_b$ of Section~\ref{continuous}, and the survival summaries $\mathrm{RMST}$ and beat rate $\mathrm{BR}$ of Section~\ref{shedding}, subscripted $j$ for a rusher and $b$ for a blocker. PFF outcomes are per-snap rates, where a pressure is a sack, hit, or hurry. Signs follow each metric's orientation: rushers who accelerate their STRAIN faster or shed faster draw more charted pressure (positive), and blockers who decelerate the rush more or sustain longer allow less (negative), while the beat rate, a measure of failure, is positive.}
 \label{tab:pff_validation}
 \end{table}

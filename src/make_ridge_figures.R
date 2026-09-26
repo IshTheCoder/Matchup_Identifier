@@ -25,18 +25,16 @@ PAL <- c(Edge = "#B2182B", DT = "#D95F02", NT = "#E6AB02",   # crimson / burnt o
 
 # x-axis label per table: the estimand's symbol (matching the table's column header) plus a gloss.
 XLAB <- c(
-  rusher_pm          = "R[j]~'   (adjusted peak STRAIN generated, centred on position mean)'",
-  blocker_pm         = "B[b]~'   (peak STRAIN suppressed, centred on position mean)'",
-  blocker_value      = "FN[b]~'   (front-normalized realized impedance)'",
-  qb_suppression     = "-Q[q]~'   (STRAIN suppression)'",
+  rusher_cont        = "R[j]^Delta~'   (per-frame STRAIN acceleration, centred on position mean)'",
+  blocker_cont       = "B[b]^Delta~'   (per-frame STRAIN deceleration, centred on position mean)'",
+  qb_cont            = "-Q[q]^Delta~'   (per-frame STRAIN suppression)'",
   blocker_continuous = "B[b]^Delta~'   (per-frame STRAIN deceleration, centred on position mean)'",
   block_hold         = "-u[b]~'   (opponent-adjusted block-hold rating)'")
 
 TITLE <- c(
-  rusher_pm          = "Play-Level Plus-Minus: Pass Rushers",
-  blocker_pm         = "Play-Level Plus-Minus: Pass Blockers",
-  blocker_value      = "Front-Normalized Realized Impedance",
-  qb_suppression     = "Quarterback STRAIN Suppression",
+  rusher_cont        = "Continuous-Time Plus-Minus: Pass Rushers",
+  blocker_cont       = "Continuous-Time Plus-Minus: Pass Blockers",
+  qb_cont            = "Continuous-Time Quarterback STRAIN Suppression",
   blocker_continuous = "Continuous-Time Blocker Rating",
   block_hold         = "Opponent-Adjusted Block Hold")
 

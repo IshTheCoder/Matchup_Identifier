@@ -3,7 +3,7 @@
 # replacing the matplotlib versions. The data prep that needs the Python model pickles stays in
 # Python; this script only PLOTS, reading the CSVs that pipeline already writes:
 #   - fitted_params_jax.csv  (HMM fitted params; `tau` = blocker position along the QB->rusher line)
-#   - rusher_2d.csv          (per-rusher attention + plus-minus effect; written by rusher_2d.py)
+#   - rusher_2d.csv          (per-rusher attention + continuous-time R^Delta_j; written by rusher_2d.py)
 # Run from the repo root:   Rscript src/make_figures.R
 # Requires: ggplot2 (ggrepel optional, for nicer non-overlapping labels in the 2-D plot).
 
@@ -77,10 +77,12 @@ p2 <- ggplot(g, aes(attention, effect)) +
   # 0.8 rather than 0.6: at 0.6 on white the gold washed out to near-cream.
   scale_alpha_manual(values = c(Edge = .8, DT = .8, NT = .8, other = .3), guide = "none") +
   labs(x = "Attention commanded  (front-normalized: blockers drawn vs. average rusher on the play)",
-       y = expression("Plus-minus effect " * R[j] * "  (strain generated, adjusted for blocking)"),
+       y = expression("Continuous-time rusher effect " * R[j]^Delta * "  (STRAIN acceleration, adjusted for blocking)"),
        title = "Two dimensions of pass rush: pressure generated vs. blocking attention drawn") +
   theme_minimal(base_size = 12) +
-  theme(legend.position = c(0.92, 0.10), legend.background = element_blank())
+  # upper right: with R^Delta the interior linemen fill the lower-right corner, the old legend spot
+  theme(legend.position = "inside", legend.position.inside = c(0.93, 0.88),
+        legend.background = element_blank())
 
 if (has_repel) {
   p2 <- p2 + ggrepel::geom_text_repel(aes(label = lab), size = 2.6, na.rm = TRUE,

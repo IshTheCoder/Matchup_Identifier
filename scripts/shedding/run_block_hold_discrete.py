@@ -16,8 +16,11 @@ from models import BlockHoldDiscreteModel
 MIN_SPELLS = 40
 ev = pd.read_csv("block_failure_events.csv")
 players = pd.read_csv("data/players.csv").set_index("nflId")
-rr = pd.read_csv("rusher_rankings_phase25.csv").set_index("nflId")["effect"]
-ev["ropp"] = ev.primary_rusher.map(rr).fillna(0.0)
+# posterior-mean play-level R_j for EVERY rusher (not the >=50-snap ranking table): low-snap rushers
+# are already shrunk toward their attribute archetype by the hierarchical prior, so none need a fill
+rr = pd.read_parquet("model_outputs/playpm_rusher_phase25_summary.parquet").set_index("nflId")["mean"]
+ev["ropp"] = ev.primary_rusher.map(rr)
+assert ev.ropp.notna().all(), f"{ev.ropp.isna().sum()} spells have no play-level R_j"
 ev["ropp"] = (ev.ropp - ev.ropp.mean()) / (ev.ropp.std() + 1e-9)
 benc = {b: i for i, b in enumerate(np.sort(ev.nflId.unique()))}
 ev["bid"] = ev.nflId.map(benc)

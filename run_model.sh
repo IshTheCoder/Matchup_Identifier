@@ -58,25 +58,28 @@ select_model() {
             RUN=(
                 "scripts/plusminus/run_phase_play_model.py phase25 assignment_data_phase25.csv"
                 # continuous-time dose model (Sec. 4.5) on the causal FILTERED assignments;
-                # writes blocker_dose_rankings_filtered_baseline_mcmc.csv (consumed by compare_blocker_metrics)
+                # (+ rusher/QB random intercepts and the phi*STRAIN_t control); writes
+                # blocker_dose_rankings_filtered_baseline_mcmc.csv + model_outputs/dose_*_baseline_*
                 "scripts/plusminus/run_blocker_dose_model.py assignment_data_phase25_filtered.csv baseline mcmc"
             )
             TABLES=(
                 "scripts/plusminus/regenerate_rankings.py"        # rusher/blocker plusminus (+ _bot), qb_suppression
                 "scripts/plusminus/realized_impedance.py"         # blocker_value.tex (+ blocker_value.csv)
-                "scripts/plusminus/compare_blocker_metrics.py"    # blocker_continuous_vs_play.tex, blocker_delta_leaders.tex
             )
             FIGS_PY=(
-                "scripts/plusminus/rusher_2d.py"        # writes rusher_2d.csv (input to make_figures.R)
+                "scripts/plusminus/rusher_2d.py"        # attention vs continuous R^Delta_j -> rusher_2d.csv (input to make_figures.R)
             )
             FIGS_R=(
                 "src/make_figures.R"                    # tau_positions + rusher_2d figures
             )
             ;;
         shedding) # opponent-adjusted block-failure survival (hold / shed ratings)
+                  # Run after playpm: the hold model's opponent covariate is the play-level R_j
+                  # (model_outputs/playpm_rusher_phase25_summary.parquet).
             RUN=(
-                "src/survival_metrics.py"                     # block_engagement.tex, rusher_shedding.tex (KM engagement/shed)
-                "scripts/shedding/run_block_survival_model.py mcmc"   # opponent-adjusted hold/shed frailty via NUTS (paper-faithful)
+                "src/survival_metrics.py"                     # block_engagement.tex, rusher_shedding.tex (KM engagement/shed) + block_failure_events.csv
+                "scripts/shedding/run_block_survival_model.py mcmc"   # exponential crossed hold/shed frailty via NUTS (not the paper's hold model)
+                "scripts/shedding/run_block_hold_discrete.py" # the paper's discrete-time logistic hold hazard (NUTS 4x1000/1000) -> block_hold_discrete_{samples.pkl,ratings.csv}
             )
             TABLES=(
                 "scripts/shedding/block_hold_tables.py"       # block_hold.tex (opponent-adjusted hold rating)

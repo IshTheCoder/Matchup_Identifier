@@ -21,7 +21,7 @@ MODEL_DIR = "model_outputs"
 OUT = f"{MODEL_DIR}/ridge_draws.parquet"
 
 # thresholds mirror the table generators exactly
-MIN_SNAPS = 50        # regenerate_rankings.py, realized_impedance.py
+MIN_SNAPS = 50        # PFF snaps (pass rush / pass block / dropbacks)
 MIN_CONT_SNAPS = 100  # compare_blocker_metrics.py leaderboard
 MIN_SPELLS = 40       # block_hold_tables.py
 RUSH_POS = ["Edge", "DT", "NT"]
@@ -56,7 +56,7 @@ def _add(table, metric, sel, draws_of, n_top, pos_col="pos"):
 def _center_by_position(sel, draws_of, pos_col="pos"):
     """Per draw, subtract that position's mean effect -> {nflId: centred draws}.
 
-    Applied to the plus-minus effects (play-level and continuous-time), whose scale carries a
+    Applied to the continuous-time plus-minus effects, whose scale carries a
     position-level offset that is not a statement about any individual. Subtracting it draw by
     draw also removes the shared uncertainty in that offset, so each panel is centred on zero =
     the average player at that position.
@@ -81,11 +81,18 @@ def _parquet_draws(name):
     return su, {k: g["value"].to_numpy() for k, g in dr.groupby("nflId")}
 
 
-# ---------------------------------------------------------------- play-level plus-minus --
-for kind, table, metric, keep_pos in [
-        ("rusher", "rusher_pm", "R[j]", RUSH_POS),
-        ("blocker", "blocker_pm", "B[b]", BLK_POS)]:
-    su, dmap = _parquet_draws(f"playpm_{kind}_phase25")
+# PFF snap counts per role: the continuous design carries no play ids, so its exports have no
+# snap column. The continuous-time leaderboard below already filters on PFF pass-block snaps.
+_pff = pd.read_csv("data/pffScoutingData.csv", usecols=["nflId", "pff_role"])
+PFF_SNAPS = {role: _pff[_pff.pff_role == role].groupby("nflId").size()
+             for role in ("Pass Rush", "Pass Block", "Pass")}
+
+# ------------------------------------------------ continuous-time plus-minus, by position --
+for kind, table, metric, keep_pos, role in [
+        ("rusher", "rusher_cont", "R[j]^Delta", RUSH_POS, "Pass Rush"),
+        ("blocker", "blocker_cont", "B[b]^Delta", BLK_POS, "Pass Block")]:
+    su, dmap = _parquet_draws(f"dose_{kind}_baseline")
+    su["snaps"] = su.nflId.map(PFF_SNAPS[role]).fillna(0)
     if kind == "rusher":
         su["pos"] = su["pos"].replace({"DE": "Edge", "OLB": "Edge"})
     su = su[(su.snaps >= MIN_SNAPS) & su.pos.isin(keep_pos)].rename(columns={"mean": "effect"})
@@ -94,14 +101,15 @@ for kind, table, metric, keep_pos in [
     _add(table, metric, su, dmap, 5)
     print(f"  {table} (position-centred): {su.pos.value_counts().to_dict()}", flush=True)
 
-# ------------------------------------------------------------------- QB strain suppression --
-su, dmap = _parquet_draws("playpm_quarterback_phase25")
+# ----------------------------------------------------- continuous-time QB strain suppression --
+su, dmap = _parquet_draws("dose_quarterback_baseline")
+su["snaps"] = su.nflId.map(PFF_SNAPS["Pass"]).fillna(0)  # PFF dropbacks
 su = su[su.snaps >= MIN_SNAPS].copy()
-su["effect"] = -su["mean"]                      # suppression = -Q_q (regenerate_rankings.py)
+su["effect"] = -su["mean"]                      # suppression = -Q^Delta_q
 su["player_pos"] = "QB"
 su["pos"] = "All"
-_add("qb_suppression", "-Q[q]", su, {k: -v for k, v in dmap.items()}, 10)
-print(f"  qb_suppression: {len(su)} QBs", flush=True)
+_add("qb_cont", "-Q[q]^Delta", su, {k: -v for k, v in dmap.items()}, 10)
+print(f"  qb_cont: {len(su)} QBs", flush=True)
 
 # ------------------------------------------------------------ continuous-time leaderboard --
 su, dmap = _parquet_draws("dose_blocker_baseline")
@@ -117,41 +125,6 @@ su["pos"] = "All"
 _add("blocker_continuous", "B[b]", su, dmap, 12)
 print(f"  blocker_continuous (position-centred): {len(su)} blockers >= {MIN_CONT_SNAPS} snaps",
       flush=True)
-
-# ---------------------------------------------------- front-normalized realized impedance --
-# FN is linear in B_b, so push every draw through the same per-play peer-centering and
-# per-blocker averaging that realized_impedance.py uses for the point estimate.
-data, enc = pickle.load(open("play_design_phase25.pkl", "rb"))
-s = pickle.load(open("play_model_samples_phase25.pkl", "rb"))
-players = pd.read_csv("data/players.csv").set_index("nflId")
-Bd = np.asarray(s["blocker_weight"] @ data["blocker_covariates"].T
-                + s["sigma_blocker"][:, None] * s["z_blocker"])          # (D, N_blockers)
-asg = np.asarray(data["assignment"]); bidx = np.asarray(data["blocker_ids"])
-eng = asg.sum(1)                       # (N_plays, blocker_slots) engagement = sum_j theta
-present = eng > 0
-ndraw, n_global = Bd.shape
-flat_gid = bidx[present]
-cnt_blk = np.bincount(flat_gid, minlength=n_global).astype(float)
-cntp = present.sum(1)
-fn = np.zeros((ndraw, n_global))
-for i in range(0, ndraw, 200):
-    Bc = Bd[i:i + 200]
-    impc = eng[None] * Bc[:, bidx]                                       # (c, N, B)
-    mbar = (impc * present[None]).sum(2) / np.maximum(cntp[None], 1)      # per-play peer mean
-    relp = (impc - mbar[:, :, None])[:, present]
-    out = np.zeros((Bc.shape[0], n_global))
-    np.add.at(out, (np.arange(Bc.shape[0])[:, None], flat_gid[None, :]), relp)
-    fn[i:i + 200] = out
-fn = fn / np.maximum(cnt_blk[None], 1)                                    # (D, N_blockers)
-inv = {v: k for k, v in enc["blocker"].items()}
-ids = [inv[i] for i in range(n_global)]
-fn_su = pd.DataFrame({
-    "nflId": ids, "effect": fn.mean(0), "snaps": cnt_blk,
-    "name": [players["displayName"].get(i, "?") for i in ids],
-    "pos": [players["officialPosition"].get(i, "?") for i in ids]})
-fn_su = fn_su[(fn_su.snaps >= MIN_SNAPS) & fn_su.pos.isin(BLK_POS)]
-_add("blocker_value", "FN[b]", fn_su, {i: fn[:, k] for k, i in enumerate(ids)}, 5)
-print(f"  blocker_value (FN): {len(fn_su)} blockers", flush=True)
 
 # ------------------------------------------------------ opponent-adjusted block-hold rating --
 hs = pickle.load(open("block_hold_discrete_samples.pkl", "rb"))

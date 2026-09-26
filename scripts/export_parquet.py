@@ -32,12 +32,15 @@ for kind in ("rusher", "blocker", "quarterback"):
     mio.export_effect(f"playpm_{kind}_phase25", draws, _ids(enc, kind, draws.shape[1]), players, snaps=snaps[kind])
     print(f"  playpm_{kind}: draws {draws.shape}", flush=True)
 
-# ---- continuous dose model (blocker, baseline-conditioned, converged MCMC) ----
+# ---- continuous dose model (blocker + rusher/QB random intercepts, converged MCMC) ----
 dd, denc = pickle.load(open("continuous_design_delta_filtered_8wk.pkl", "rb"))
 ds = pickle.load(open("blocker_dose_samples_filtered_baseline_mcmc.pkl", "rb"))
-draws = mio.reconstruct_draws(ds, dd, "blocker")              # 'blocker_effect' direct site
-mio.export_effect("dose_blocker_baseline", draws, _ids(denc, "blocker", draws.shape[1]), players)
-print(f"  dose_blocker: draws {draws.shape}", flush=True)
+for kind in ("blocker", "rusher", "quarterback"):
+    if f"{kind}_effect" not in ds:                              # rusher/QB only when player_effects=True
+        continue
+    draws = mio.reconstruct_draws(ds, dd, kind)                 # '{kind}_effect' direct site
+    mio.export_effect(f"dose_{kind}_baseline", draws, _ids(denc, kind, draws.shape[1]), players)
+    print(f"  dose_{kind}_baseline: draws {draws.shape}", flush=True)
 
 import os
 print("wrote:", ", ".join(sorted(os.listdir(mio.MODEL_DIR))))

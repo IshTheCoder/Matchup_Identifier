@@ -30,5 +30,5 @@ parquet is the portable surface. Each per-player effect writes two files:
 
 `scripts/export_parquet.py` produces these from the already-fit pickles (no re-run); the drivers
 `plusminus/run_phase_play_model.py` and `plusminus/run_blocker_dose_model.py` also write them on each
-fit (`playpm_{rusher,blocker,quarterback}_<phase>`, `dose_blocker[_baseline]`). Helper: `src/model_io.py`.
+fit (`playpm_{rusher,blocker,quarterback}_<phase>`, `dose_{blocker,rusher,quarterback}[_baseline]`). Helper: `src/model_io.py`.
 (`model_outputs/` is git-ignored like the other generated artifacts.)

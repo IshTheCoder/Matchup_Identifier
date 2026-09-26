@@ -95,8 +95,15 @@ cont = [(r"$\mu$ (intercept)", cs["intercept"]),
         (r"$B^{\Delta}_b$ (blocker effects)", cs["blocker_effect"]),
         (r"$\alpha_B$ (blocker attributes)", cs["blocker_weight"]),
         (r"$\sigma_B^{\Delta}$", cs["sigma_blocker"])]
+if "rusher_effect" in cs:
+    cont += [(r"$R^{\Delta}_j$ (rusher effects)", cs["rusher_effect"]),
+             (r"$\alpha_R$ (rusher attributes)", cs["rusher_weight"]),
+             (r"$\sigma_R^{\Delta}$", cs["sigma_rusher"]),
+             (r"$Q^{\Delta}_q$ (QB effects)", cs["quarterback_effect"]),
+             (r"$\alpha_Q$ (QB attributes)", cs["quarterback_weight"]),
+             (r"$\sigma_Q^{\Delta}$", cs["sigma_quarterback"])]
 if "rho" in cs:
-    cont.append((r"$\rho$ (baseline STRAIN)", cs["rho"]))
+    cont.append((r"$\phi$ (STRAIN$_t$ control)", cs["rho"]))
 cont.append((r"$\sigma_{\Delta}$ (residual)", cs["sigma"]))
 rows += _rows("Continuous-time", cont, 4)
 
